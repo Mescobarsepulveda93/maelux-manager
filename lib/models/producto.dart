@@ -5,6 +5,7 @@ class Producto {
 
   final double gramos;
   final double horas;
+  final double minutos;
 
   final double costoProduccion;
   final double precioVenta;
@@ -15,6 +16,7 @@ class Producto {
     required this.material,
     required this.gramos,
     required this.horas,
+    required this.minutos,
     required this.costoProduccion,
     required this.precioVenta,
   });
