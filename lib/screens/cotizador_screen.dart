@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/costos_service.dart';
-import '../data/configuracion_demo.dart';
+import '../models/material_3d.dart';
+import '../data/materiales_demo.dart';
 
 class CotizadorScreen extends StatefulWidget {
   const CotizadorScreen({super.key});
@@ -12,6 +13,7 @@ class CotizadorScreen extends StatefulWidget {
 class _CotizadorScreenState extends State<CotizadorScreen> {
   final gramosController = TextEditingController();
   final minutosController = TextEditingController();
+  Material3D materialSeleccionado = materialesDemo.first;
 
   double costoMaterial = 0;
   double costoTiempo = 0;
@@ -22,7 +24,10 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
 
     double minutos = double.tryParse(minutosController.text) ?? 0;
 
-    double material = CostosService.calcularMaterial(gramos, materialPla);
+    double material = CostosService.calcularMaterial(
+      gramos,
+      materialSeleccionado,
+    );
 
     double tiempo = CostosService.calcularTiempo(minutos);
 
@@ -43,6 +48,21 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            DropdownButton<Material3D>(
+              value: materialSeleccionado,
+              isExpanded: true,
+              items: materialesDemo.map((material) {
+                return DropdownMenuItem<Material3D>(
+                  value: material,
+                  child: Text("${material.nombre} - \$${material.precioKg}"),
+                );
+              }).toList(),
+              onChanged: (nuevoMaterial) {
+                setState(() {
+                  materialSeleccionado = nuevoMaterial!;
+                });
+              },
+            ),
             TextField(
               controller: gramosController,
               keyboardType: TextInputType.number,
