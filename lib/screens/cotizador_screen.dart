@@ -19,6 +19,7 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
   double costoTotal = 0;
   double costoElectricidad = 0;
   double costoDesgaste = 0;
+  double costoMargenError = 0;
 
   void calcularCosto() {
     double gramos = double.tryParse(gramosController.text) ?? 0;
@@ -34,6 +35,8 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
 
     double desgaste = CostosService.calcularDesgaste(minutos);
 
+    double margenError = (material + electricidad + desgaste) * 0.05;
+
     setState(() {
       costoMaterial = material;
 
@@ -41,7 +44,9 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
 
       costoDesgaste = desgaste;
 
-      costoTotal = material + electricidad + desgaste;
+      costoMargenError = margenError;
+
+      costoTotal = material + electricidad + desgaste + margenError;
     });
   }
 
@@ -100,6 +105,8 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
             const SizedBox(height: 10),
 
             Text("Desgaste: \$${costoDesgaste.toStringAsFixed(0)}"),
+
+            Text("Margen Error: \$${costoMargenError.toStringAsFixed(0)}"),
 
             const Divider(),
 
