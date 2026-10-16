@@ -5,11 +5,15 @@ class CostosService {
     return (gramos / 1000) * material.precioKg;
   }
 
-  static double calcularTiempo(double minutos) {
-    return minutos * 2;
+  static double calcularElectricidad(double minutos) {
+    const double costoHora = 27.5;
+
+    return (minutos / 60) * costoHora;
   }
 
-  static double calcularTotal(double material, double tiempo) {
-    return material + tiempo;
+  static double calcularDesgaste(double minutos) {
+    const double desgasteHora = 125;
+
+    return (minutos / 60) * desgasteHora;
   }
 }

@@ -16,8 +16,9 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
   Material3D materialSeleccionado = materialesDemo.first;
 
   double costoMaterial = 0;
-  double costoTiempo = 0;
   double costoTotal = 0;
+  double costoElectricidad = 0;
+  double costoDesgaste = 0;
 
   void calcularCosto() {
     double gramos = double.tryParse(gramosController.text) ?? 0;
@@ -29,14 +30,18 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
       materialSeleccionado,
     );
 
-    double tiempo = CostosService.calcularTiempo(minutos);
+    double electricidad = CostosService.calcularElectricidad(minutos);
+
+    double desgaste = CostosService.calcularDesgaste(minutos);
 
     setState(() {
       costoMaterial = material;
 
-      costoTiempo = tiempo;
+      costoElectricidad = electricidad;
 
-      costoTotal = CostosService.calcularTotal(material, tiempo);
+      costoDesgaste = desgaste;
+
+      costoTotal = material + electricidad + desgaste;
     });
   }
 
@@ -90,7 +95,11 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
 
             const SizedBox(height: 10),
 
-            Text("Tiempo: \$${costoTiempo.toStringAsFixed(0)}"),
+            Text("Electricidad: \$${costoElectricidad.toStringAsFixed(0)}"),
+
+            const SizedBox(height: 10),
+
+            Text("Desgaste: \$${costoDesgaste.toStringAsFixed(0)}"),
 
             const Divider(),
 
