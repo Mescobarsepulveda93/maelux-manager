@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/costos_service.dart';
+import '../data/configuracion_demo.dart';
 
 class CotizadorScreen extends StatefulWidget {
   const CotizadorScreen({super.key});
@@ -12,6 +13,8 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
   final gramosController = TextEditingController();
   final minutosController = TextEditingController();
 
+  double costoMaterial = 0;
+  double costoTiempo = 0;
   double costoTotal = 0;
 
   void calcularCosto() {
@@ -19,12 +22,16 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
 
     double minutos = double.tryParse(minutosController.text) ?? 0;
 
-    double costoMaterial = CostosService.calcularMaterial(gramos, 10000);
+    double material = CostosService.calcularMaterial(gramos, materialPla);
 
-    double costoTiempo = CostosService.calcularTiempo(minutos);
+    double tiempo = CostosService.calcularTiempo(minutos);
 
     setState(() {
-      costoTotal = CostosService.calcularTotal(costoMaterial, costoTiempo);
+      costoMaterial = material;
+
+      costoTiempo = tiempo;
+
+      costoTotal = CostosService.calcularTotal(material, tiempo);
     });
   }
 
@@ -59,8 +66,16 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
 
             const SizedBox(height: 20),
 
+            Text("Material: \$${costoMaterial.toStringAsFixed(0)}"),
+
+            const SizedBox(height: 10),
+
+            Text("Tiempo: \$${costoTiempo.toStringAsFixed(0)}"),
+
+            const Divider(),
+
             Text(
-              "Costo Total: \$${costoTotal.toStringAsFixed(0)}",
+              "Total: \$${costoTotal.toStringAsFixed(0)}",
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
           ],

@@ -1,6 +1,8 @@
+import '../models/material_3d.dart';
+
 class CostosService {
-  static double calcularMaterial(double gramos, double precioKg) {
-    return (gramos / 1000) * precioKg;
+  static double calcularMaterial(double gramos, Material3D material) {
+    return (gramos / 1000) * material.precioKg;
   }
 
   static double calcularTiempo(double minutos) {
