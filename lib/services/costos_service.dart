@@ -16,4 +16,8 @@ class CostosService {
 
     return (minutos / 60) * desgasteHora;
   }
+
+  static double calcularPackaging() {
+    return 50;
+  }
 }
