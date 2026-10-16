@@ -19,7 +19,7 @@ class CatalogoScreen extends StatelessWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // Acción al presionar el botón
+          print("Agregar producto");
         },
         child: const Icon(Icons.add),
       ),

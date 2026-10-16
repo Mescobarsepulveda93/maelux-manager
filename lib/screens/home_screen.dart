@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'catalogo_screen.dart';
+import 'cotizador_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -42,7 +43,14 @@ class HomeScreen extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CotizadorScreen(),
+                    ),
+                  );
+                },
                 child: const Text("COTIZADOR"),
               ),
             ),
