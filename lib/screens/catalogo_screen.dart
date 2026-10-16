@@ -17,6 +17,12 @@ class CatalogoScreen extends StatelessWidget {
           return ProductoCard(producto: producto);
         },
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          // Acción al presionar el botón
+        },
+        child: const Icon(Icons.add),
+      ),
     );
   }
 }
