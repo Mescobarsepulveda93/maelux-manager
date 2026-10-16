@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-
 import '../data/productos_demo.dart';
+import '../widgets/producto_card.dart';
 
 class CatalogoScreen extends StatelessWidget {
   const CatalogoScreen({super.key});
@@ -14,21 +14,7 @@ class CatalogoScreen extends StatelessWidget {
         itemBuilder: (context, index) {
           final producto = productosDemo[index];
 
-          return Card(
-            margin: const EdgeInsets.all(10),
-            child: ListTile(
-              title: Text(producto.nombre),
-              subtitle: Text(
-                "${producto.material}\n"
-                "${producto.gramos} g\n"
-                "${producto.minutos} min",
-              ),
-              trailing: Text(
-                "\$${producto.precioVenta.toStringAsFixed(0)}",
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          );
+          return ProductoCard(producto: producto);
         },
       ),
     );
