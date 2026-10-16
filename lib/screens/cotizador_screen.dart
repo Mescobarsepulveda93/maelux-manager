@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/costos_service.dart';
 
 class CotizadorScreen extends StatefulWidget {
   const CotizadorScreen({super.key});
@@ -18,12 +19,12 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
 
     double minutos = double.tryParse(minutosController.text) ?? 0;
 
-    double costoMaterial = gramos * 10;
+    double costoMaterial = CostosService.calcularMaterial(gramos, 10000);
 
-    double costoTiempo = minutos * 2;
+    double costoTiempo = CostosService.calcularTiempo(minutos);
 
     setState(() {
-      costoTotal = costoMaterial + costoTiempo;
+      costoTotal = CostosService.calcularTotal(costoMaterial, costoTiempo);
     });
   }
 
