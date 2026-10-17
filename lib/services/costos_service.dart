@@ -20,4 +20,12 @@ class CostosService {
   static double calcularPackaging() {
     return 50;
   }
+
+  static double calcularGastosBancarios() {
+    return 305;
+  }
+
+  static double calcularGetnet(double subtotal) {
+    return subtotal * 0.0211;
+  }
 }
