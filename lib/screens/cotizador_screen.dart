@@ -32,6 +32,11 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
 
   final cantidadController = TextEditingController(text: '1');
 
+  // Valor de la UF utilizado para convertir a pesos
+  // los cargos fijos de las tarifas por tarjeta.
+
+  final valorUfController = TextEditingController();
+
   // ========================================================
   // OPCIONES SELECCIONABLES
   // ========================================================
@@ -47,10 +52,16 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
 
   double multiplicadorComercial = 3;
 
-  // Medios de pago disponibles en la primera versión.
-  // Efectivo y transferencia no generan comisión por tarjeta.
+  // Medios de pago disponibles para la cotización.
+  // Cada tipo de tarjeta utiliza una tarifa contractual diferente.
 
-  final List<String> mediosPago = ['Efectivo', 'Transferencia', 'Tarjetas'];
+  final List<String> mediosPago = [
+    'Efectivo',
+    'Transferencia',
+    'Tarjeta de débito',
+    'Tarjeta de crédito',
+    'Tarjeta de prepago',
+  ];
 
   String medioPagoSeleccionado = 'Efectivo';
 
@@ -117,6 +128,11 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
 
     final int cantidad = int.tryParse(cantidadController.text) ?? 1;
 
+    // La UF permite convertir a pesos los cargos fijos
+    // establecidos en las tarifas por tarjeta.
+    final double valorUf =
+        double.tryParse(valorUfController.text.replaceAll(',', '.')) ?? 0;
+
     // Convierte horas y minutos en una única duración.
     // Este valor se utiliza para calcular electricidad y desgaste.
 
@@ -139,6 +155,26 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
         const SnackBar(
           content: Text(
             'Completa el nombre, los gramos, el tiempo y la cantidad.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    // Determina si el medio de pago seleccionado requiere
+    // calcular una comisión asociada a una tarjeta.
+    final bool usaTarjeta =
+        medioPagoSeleccionado == 'Tarjeta de débito' ||
+        medioPagoSeleccionado == 'Tarjeta de crédito' ||
+        medioPagoSeleccionado == 'Tarjeta de prepago';
+
+    // La UF solo es obligatoria cuando el pago utiliza tarjeta.
+    if (usaTarjeta && valorUf <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Introduce un valor UF válido para calcular la comisión.',
           ),
         ),
       );
@@ -197,19 +233,14 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
     // COMISIÓN SEGÚN MEDIO DE PAGO
     // ------------------------------------------------------
 
-    // La comisión se calcula únicamente cuando el cliente
-    // selecciona el pago mediante tarjeta.
-    //
-    // Durante el Día 2 se ajustará para calcularse sobre el
-    // valor total del pedido y no solamente sobre una unidad.
+    // La comisión se calcula sobre el valor total del pedido,
+    // considerando todas las unidades solicitadas.
 
-    final double getnet;
-
-    if (medioPagoSeleccionado == 'Tarjetas') {
-      getnet = CostosService.calcularGetnet(sugerido);
-    } else {
-      getnet = 0;
-    }
+    final double getnet = CostosService.calcularComisionPorMedioPago(
+      medioPago: medioPagoSeleccionado,
+      montoTransaccion: totalNeto,
+      valorUf: valorUf,
+    );
 
     // ------------------------------------------------------
     // ACTUALIZACIÓN DE LA INTERFAZ
@@ -247,6 +278,7 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
     horasController.dispose();
     minutosController.dispose();
     cantidadController.dispose();
+    valorUfController.dispose();
 
     super.dispose();
   }
@@ -387,6 +419,7 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
                 labelText: 'Multiplicador comercial',
                 border: OutlineInputBorder(),
               ),
+
               items: multiplicadores.map((multiplicador) {
                 return DropdownMenuItem<double>(
                   value: multiplicador,
@@ -402,6 +435,20 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
                   multiplicadorComercial = nuevoMultiplicador;
                 });
               },
+            ),
+
+            const SizedBox(height: 16),
+
+            TextField(
+              controller: valorUfController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Valor UF utilizado',
+                hintText: 'Ejemplo: 39150,25',
+                border: OutlineInputBorder(),
+              ),
             ),
 
             const SizedBox(height: 16),
@@ -599,11 +646,10 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
             ),
 
             Text(
-              'Comisión para tarjetas: '
+              'Comisión estimada del pedido: '
               '\$${costoGetnet.toStringAsFixed(0)}',
               textAlign: TextAlign.center,
             ),
-
             const SizedBox(height: 8),
 
             const Text(
