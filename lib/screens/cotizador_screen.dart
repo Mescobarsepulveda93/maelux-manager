@@ -15,6 +15,9 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
   Material3D materialSeleccionado = materialesDemo.first;
   final List<double> multiplicadores = [2, 3, 5];
   double multiplicadorComercial = 3;
+  final List<String> mediosPago = ['Efectivo', 'Transferencia', 'Tarjetas'];
+
+  String medioPagoSeleccionado = 'Efectivo';
   double costoMaterial = 0;
   double costoElectricidad = 0;
   double costoDesgaste = 0;
@@ -54,7 +57,13 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
     final double operacional = packaging + gastosBancarios;
     final double empresa = fabricacion + operacional;
     final double sugerido = empresa * multiplicadorComercial;
-    final double getnet = CostosService.calcularGetnet(sugerido);
+    final double getnet;
+
+    if (medioPagoSeleccionado == 'Tarjetas') {
+      getnet = CostosService.calcularGetnet(sugerido);
+    } else {
+      getnet = 0;
+    }
     setState(() {
       costoMaterial = material;
       costoElectricidad = electricidad;
@@ -151,6 +160,30 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
                 }
                 setState(() {
                   multiplicadorComercial = nuevoMultiplicador;
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+
+            DropdownButtonFormField<String>(
+              initialValue: medioPagoSeleccionado,
+              decoration: const InputDecoration(
+                labelText: 'Medio de pago',
+                border: OutlineInputBorder(),
+              ),
+              items: mediosPago.map((medioPago) {
+                return DropdownMenuItem<String>(
+                  value: medioPago,
+                  child: Text(medioPago),
+                );
+              }).toList(),
+              onChanged: (nuevoMedioPago) {
+                if (nuevoMedioPago == null) {
+                  return;
+                }
+
+                setState(() {
+                  medioPagoSeleccionado = nuevoMedioPago;
                 });
               },
             ),
@@ -252,7 +285,12 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Getnet estimado: '
+              'Medio de pago: $medioPagoSeleccionado',
+              textAlign: TextAlign.center,
+            ),
+
+            Text(
+              'Comisión para tarjetas: '
               '\$${costoGetnet.toStringAsFixed(0)}',
               textAlign: TextAlign.center,
             ),
