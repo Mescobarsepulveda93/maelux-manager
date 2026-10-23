@@ -52,16 +52,11 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
 
   double multiplicadorComercial = 3;
 
-  // Medios de pago disponibles para la cotización.
-  // Cada tipo de tarjeta utiliza una tarifa contractual diferente.
-
-  final List<String> mediosPago = [
-    'Efectivo',
-    'Transferencia',
-    'Tarjeta de débito',
-    'Tarjeta de crédito',
-    'Tarjeta de prepago',
-  ];
+  // Medios de pago presentados al usuario.
+  //
+  // La opción Tarjeta utiliza la tarifa de crédito nacional como
+  // criterio conservador para débito, crédito y prepago nacionales.
+  final List<String> mediosPago = ['Efectivo', 'Transferencia', 'Tarjeta'];
 
   String medioPagoSeleccionado = 'Efectivo';
 
@@ -82,14 +77,23 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
   double costoPackaging = 0;
   double costoGastosBancarios = 0;
   double subtotalOperacional = 0;
-
   // ========================================================
   // RESULTADOS COMERCIALES
   // ========================================================
 
   double costoEmpresa = 0;
   double precioSugerido = 0;
-  double costoGetnet = 0;
+
+  // Comisión total asociada al pago con tarjeta.
+  // El valor incorpora internamente el IVA del servicio financiero.
+  double costoComisionTarjeta = 0;
+
+  // IVA del producto incluido en la boleta o factura.
+  double costoIvaVenta = 0;
+
+  // Valores finales listos para comunicar o cobrar.
+  double precioFinalUnitario = 0;
+  double precioFinalPedido = 0;
 
   // ========================================================
   // RESULTADOS GENERALES DE LA COTIZACIÓN
@@ -162,12 +166,9 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
       return;
     }
 
-    // Determina si el medio de pago seleccionado requiere
-    // calcular una comisión asociada a una tarjeta.
-    final bool usaTarjeta =
-        medioPagoSeleccionado == 'Tarjeta de débito' ||
-        medioPagoSeleccionado == 'Tarjeta de crédito' ||
-        medioPagoSeleccionado == 'Tarjeta de prepago';
+    // La UF es necesaria únicamente cuando se selecciona
+    // Tarjeta como medio de pago.
+    final bool usaTarjeta = medioPagoSeleccionado == 'Tarjeta';
 
     // La UF solo es obligatoria cuando el pago utiliza tarjeta.
     if (usaTarjeta && valorUf <= 0) {
@@ -230,17 +231,36 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
     final double totalNeto = sugerido * cantidad;
 
     // ------------------------------------------------------
-    // COMISIÓN SEGÚN MEDIO DE PAGO
+    // IVA, COMISIÓN Y PRECIO FINAL
     // ------------------------------------------------------
 
-    // La comisión se calcula sobre el valor total del pedido,
-    // considerando todas las unidades solicitadas.
-
-    final double getnet = CostosService.calcularComisionPorMedioPago(
+    // El precio final incorpora el IVA del producto en todos
+    // los medios de pago.
+    //
+    // Cuando se utiliza tarjeta, la fórmula también protege
+    // el ingreso frente a la comisión financiera del pedido.
+    final double finalPedido = CostosService.calcularPrecioFinalPedido(
       medioPago: medioPagoSeleccionado,
-      montoTransaccion: totalNeto,
+      montoNetoObjetivo: totalNeto,
       valorUf: valorUf,
     );
+
+    // Extrae únicamente el IVA de la venta del producto.
+    // Este es el IVA que mostraremos en la vista comercial.
+    final double ivaVenta = CostosService.extraerIvaVenta(
+      precioFinal: finalPedido,
+    );
+
+    // Calcula la comisión definitiva sobre el importe
+    // que efectivamente pagará el cliente.
+    final double comisionTarjeta = CostosService.calcularComisionPorMedioPago(
+      medioPago: medioPagoSeleccionado,
+      montoTransaccion: finalPedido,
+      valorUf: valorUf,
+    );
+
+    // Divide el precio total entre las unidades solicitadas.
+    final double finalUnitario = cantidad > 0 ? finalPedido / cantidad : 0;
 
     // ------------------------------------------------------
     // ACTUALIZACIÓN DE LA INTERFAZ
@@ -259,7 +279,11 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
 
       costoEmpresa = empresa;
       precioSugerido = sugerido;
-      costoGetnet = getnet;
+      costoComisionTarjeta = comisionTarjeta;
+
+      costoIvaVenta = ivaVenta;
+      precioFinalUnitario = finalUnitario;
+      precioFinalPedido = finalPedido;
 
       tiempoDecimalHoras = tiempoDecimal;
       cantidadUnidades = cantidad;
@@ -646,19 +670,52 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
             ),
 
             Text(
-              'Comisión estimada del pedido: '
-              '\$${costoGetnet.toStringAsFixed(0)}',
+              'Comisión de tarjeta del pedido: '
+              '\$${costoComisionTarjeta.toStringAsFixed(0)}',
               textAlign: TextAlign.center,
             ),
+
+            Text(
+              'IVA del producto (19 %): '
+              '\$${costoIvaVenta.toStringAsFixed(0)}',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+
+            // ------------------------------------------------
+            // PRECIO FINAL LISTO PARA COBRAR
+            // ------------------------------------------------
+            const Divider(),
+
+            const Text(
+              'PRECIO FINAL',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+
+            const SizedBox(height: 8),
+
+            Text(
+              'Precio final por unidad: '
+              '\$${precioFinalUnitario.toStringAsFixed(0)}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+
+            Text(
+              'Total final del pedido: '
+              '\$${precioFinalPedido.toStringAsFixed(0)}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+            ),
+
             const SizedBox(height: 8),
 
             const Text(
-              'El precio sugerido todavía no incluye el IVA final.',
+              'IVA del producto incluido.',
               textAlign: TextAlign.center,
               style: TextStyle(fontStyle: FontStyle.italic),
             ),
-
-            const SizedBox(height: 24),
           ],
         ),
       ),
