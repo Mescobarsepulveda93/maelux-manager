@@ -99,6 +99,9 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
   // RESULTADOS GENERALES DE LA COTIZACIÓN
   // ========================================================
 
+  // Nombre correspondiente a la última cotización calculada.
+  String nombreDisenoCotizado = '';
+
   // Tiempo total expresado en formato decimal.
   // Ejemplo: 11 horas y 50 minutos equivalen a 11,83 horas.
 
@@ -285,10 +288,39 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
       precioFinalUnitario = finalUnitario;
       precioFinalPedido = finalPedido;
 
+      nombreDisenoCotizado = nombreDiseno;
       tiempoDecimalHoras = tiempoDecimal;
       cantidadUnidades = cantidad;
       precioTotalNeto = totalNeto;
     });
+  }
+
+  // ========================================================
+  // COMPONENTES AUXILIARES DE LA INTERFAZ
+  // ========================================================
+
+  /// Construye un dato compacto para el resumen comercial.
+  ///
+  /// Este componente evita repetir estilos y mantiene una
+  /// presentación uniforme para los valores listos para cobrar.
+  Widget _datoResumen({required String etiqueta, required String valor}) {
+    return Column(
+      children: [
+        Text(
+          etiqueta,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 13),
+        ),
+
+        const SizedBox(height: 4),
+
+        Text(
+          valor,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
   }
 
   // ========================================================
@@ -505,6 +537,110 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
             ElevatedButton(
               onPressed: calcularCosto,
               child: const Text('Calcular'),
+            ),
+
+            const SizedBox(height: 24),
+
+            // ------------------------------------------------
+            // RESUMEN RÁPIDO DE LA COTIZACIÓN
+            // ------------------------------------------------
+            Card(
+              elevation: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'RESUMEN PARA COBRAR',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    Text(
+                      nombreDisenoCotizado.isEmpty
+                          ? 'Producto sin calcular'
+                          : nombreDisenoCotizado,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _datoResumen(
+                            etiqueta: 'Cantidad',
+                            valor: '$cantidadUnidades',
+                          ),
+                        ),
+                        Expanded(
+                          child: _datoResumen(
+                            etiqueta: 'Medio de pago',
+                            valor: medioPagoSeleccionado,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _datoResumen(
+                            etiqueta: 'Precio unitario',
+                            valor:
+                                '\$${precioFinalUnitario.toStringAsFixed(0)}',
+                          ),
+                        ),
+                        Expanded(
+                          child: _datoResumen(
+                            etiqueta: 'IVA del producto',
+                            valor: '\$${costoIvaVenta.toStringAsFixed(0)}',
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const Divider(height: 32),
+
+                    const Text(
+                      'TOTAL FINAL DEL PEDIDO',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    Text(
+                      '\$${precioFinalPedido.toStringAsFixed(0)}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 30,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    const Text(
+                      'IVA del producto incluido',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontStyle: FontStyle.italic),
+                    ),
+                  ],
+                ),
+              ),
             ),
 
             const SizedBox(height: 24),
