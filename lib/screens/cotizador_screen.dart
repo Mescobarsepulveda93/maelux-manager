@@ -56,15 +56,17 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
   // repeticiones y pérdidas de material.
   final margenErrorController = TextEditingController(text: '5');
 
-  // Gastos financieros mensuales que posteriormente se
-  // prorratean entre las ventas estimadas del mes.
+  // Gastos financieros mensuales que se distribuyen
+  // entre las unidades mensuales estimadas.
   final gastosFinancierosMensualesController = TextEditingController(
     text: '30500',
   );
 
-  // Cantidad de ventas utilizada para calcular el gasto
-  // financiero correspondiente a cada unidad.
-  final ventasMensualesEstimadasController = TextEditingController(text: '100');
+  // Cantidad estimada de unidades vendidas durante el mes.
+  // Se utiliza para distribuir los gastos financieros mensuales.
+  final unidadesMensualesEstimadasController = TextEditingController(
+    text: '100',
+  );
 
   // IVA aplicado a la venta del producto.
   final ivaProductoController = TextEditingController(text: '19');
@@ -203,6 +205,49 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
         double.tryParse(margenErrorController.text.replaceAll(',', '.')) ?? 0;
 
     // ------------------------------------------------------
+    // LECTURA DE SUPUESTOS FINANCIEROS
+    // ------------------------------------------------------
+
+    // Total mensual destinado a cubrir servicios bancarios
+    // y otros gastos financieros recurrentes.
+    final double gastosFinancierosMensuales =
+        double.tryParse(
+          gastosFinancierosMensualesController.text.replaceAll(',', '.'),
+        ) ??
+        0;
+
+    // Cantidad estimada de unidades entre las cuales se
+    // distribuirán los gastos financieros mensuales.
+    final int unidadesMensualesEstimadas =
+        int.tryParse(unidadesMensualesEstimadasController.text) ?? 0;
+
+    // ------------------------------------------------------
+    // LECTURA DE SUPUESTOS TRIBUTARIOS Y DE TARJETA
+    // ------------------------------------------------------
+
+    // IVA aplicado al precio de venta del producto.
+    final double porcentajeIva =
+        double.tryParse(ivaProductoController.text.replaceAll(',', '.')) ?? 0;
+
+    // Comisión porcentual aplicada al pago con tarjeta.
+    final double porcentajeComisionTarjeta =
+        double.tryParse(comisionTarjetaController.text.replaceAll(',', '.')) ??
+        0;
+
+    // Cargo fijo contractual por cada transacción con tarjeta.
+    final double cargoFijoTarjetaUf =
+        double.tryParse(
+          cargoFijoTarjetaUfController.text.replaceAll(',', '.'),
+        ) ??
+        0;
+
+    // Convierte los porcentajes escritos por el administrador
+    // al formato decimal utilizado por las fórmulas.
+    final double ivaDecimal = porcentajeIva / 100;
+
+    final double comisionTarjetaDecimal = porcentajeComisionTarjeta / 100;
+
+    // ------------------------------------------------------
     // CONVERSIÓN DEL TIEMPO DE IMPRESIÓN
     // ------------------------------------------------------
 
@@ -241,6 +286,38 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
         const SnackBar(
           content: Text(
             'Revisa el costo eléctrico, el consumo y los supuestos de producción.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    // Los gastos pueden ser cero, pero no negativos.
+    // La cantidad de unidades siempre debe ser mayor que cero.
+    if (gastosFinancierosMensuales < 0 || unidadesMensualesEstimadas <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Revisa los gastos financieros y las unidades mensuales estimadas.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    // El IVA debe encontrarse dentro de un rango válido.
+    // La comisión y el cargo fijo pueden ser cero, pero no negativos.
+    if (porcentajeIva < 0 ||
+        porcentajeIva >= 100 ||
+        porcentajeComisionTarjeta < 0 ||
+        porcentajeComisionTarjeta >= 100 ||
+        cargoFijoTarjetaUf < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Revisa el IVA y los valores configurados para tarjeta.',
           ),
         ),
       );
@@ -299,7 +376,10 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
 
     final double packaging = CostosService.calcularPackaging();
 
-    final double gastosBancarios = CostosService.calcularGastosBancarios();
+    final double gastosBancarios = CostosService.calcularGastosBancarios(
+      gastosMensuales: gastosFinancierosMensuales,
+      unidadesMensualesEstimadas: unidadesMensualesEstimadas,
+    );
 
     final double operacional = packaging + gastosBancarios;
 
@@ -331,12 +411,16 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
       medioPago: medioPagoSeleccionado,
       montoNetoObjetivo: totalNeto,
       valorUf: valorUf,
+      porcentajeIva: ivaDecimal,
+      porcentajeComision: comisionTarjetaDecimal,
+      cargoFijoUf: cargoFijoTarjetaUf,
     );
 
     // Extrae únicamente el IVA de la venta del producto.
     // Este es el IVA que mostraremos en la vista comercial.
     final double ivaVenta = CostosService.extraerIvaVenta(
       precioFinal: finalPedido,
+      porcentajeIva: ivaDecimal,
     );
 
     // Calcula la comisión definitiva sobre el importe
@@ -345,6 +429,9 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
       medioPago: medioPagoSeleccionado,
       montoTransaccion: finalPedido,
       valorUf: valorUf,
+      porcentajeComision: comisionTarjetaDecimal,
+      cargoFijoUf: cargoFijoTarjetaUf,
+      porcentajeIvaComision: ivaDecimal,
     );
 
     // Divide el precio total entre las unidades solicitadas.
@@ -589,7 +676,7 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
           ),
 
           Text(
-            'IVA del producto (19 %): '
+            'IVA del producto: '
             '\$${costoIvaVenta.toStringAsFixed(0)}',
             textAlign: TextAlign.center,
           ),
@@ -632,8 +719,8 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
   /// Estos valores permitirán modificar las reglas de producción,
   /// operación, tributación y comisión sin editar el código.
   ///
-  /// Durante esta fase los campos se muestran en la interfaz,
-  /// pero se conectarán progresivamente con las fórmulas.
+  /// Los valores configurados en esta sección se aplican
+  /// cuando se genera una nueva cotización.
   Widget _construirSupuestosEditables() {
     return Card(
       child: ExpansionTile(
@@ -734,11 +821,13 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
           const SizedBox(height: 16),
 
           TextField(
-            controller: ventasMensualesEstimadasController,
+            controller: unidadesMensualesEstimadasController,
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(
-              labelText: 'Ventas mensuales estimadas',
-              suffixText: 'ventas',
+              labelText: 'Unidades mensuales estimadas',
+              suffixText: 'unidades',
+              helperText:
+                  'Cantidad aproximada de unidades vendidas durante el mes.',
               border: OutlineInputBorder(),
             ),
           ),
@@ -823,9 +912,8 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
           const SizedBox(height: 16),
 
           const Text(
-            'Electricidad, consumo, desgaste y margen de error '
-            'ya se aplican al cálculo. Los supuestos financieros, '
-            'tributarios y de tarjeta se conectarán progresivamente.',
+            'Los valores configurados en esta sección se aplican '
+            'al realizar una nueva cotización.',
             textAlign: TextAlign.center,
             style: TextStyle(fontStyle: FontStyle.italic),
           ),
@@ -856,7 +944,7 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
 
     // Controladores de supuestos financieros y tributarios.
     gastosFinancierosMensualesController.dispose();
-    ventasMensualesEstimadasController.dispose();
+    unidadesMensualesEstimadasController.dispose();
     ivaProductoController.dispose();
     comisionTarjetaController.dispose();
     cargoFijoTarjetaUfController.dispose();

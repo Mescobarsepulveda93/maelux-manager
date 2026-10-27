@@ -70,17 +70,22 @@ class CostosService {
     return costoPackaging;
   }
 
-  /// Devuelve el gasto bancario fijo prorrateado por unidad.
+  /// Calcula el gasto financiero asignado a cada unidad.
   ///
-  /// El valor actual considera una estimación de 100 ventas
-  /// mensuales. Posteriormente se calculará dinámicamente con:
+  /// [gastosMensuales] representa el total mensual asociado
+  /// a cuenta bancaria, terminal de pago u otros servicios.
   ///
-  /// gastos financieros mensuales / ventas mensuales estimadas.
+  /// [unidadesMensualesEstimadas] representa la cantidad aproximada
+  /// de unidades entre las cuales se distribuirán esos gastos.
+  static double calcularGastosBancarios({
+    required double gastosMensuales,
+    required int unidadesMensualesEstimadas,
+  }) {
+    if (gastosMensuales < 0 || unidadesMensualesEstimadas <= 0) {
+      return 0;
+    }
 
-  static double calcularGastosBancarios() {
-    const double gastoBancarioUnitario = 305;
-
-    return gastoBancarioUnitario;
+    return gastosMensuales / unidadesMensualesEstimadas;
   }
 
   // ========================================================
@@ -124,22 +129,24 @@ class CostosService {
   ///
   /// Efectivo y transferencia no generan comisión transaccional.
   ///
-  /// La opción Tarjeta utiliza la tarifa contractual de crédito
-  /// nacional como criterio conservador:
-  ///
-  /// 1,44 % del importe + 0,0018 UF, más IVA de la comisión.
+  /// Los parámetros de tarjeta son configurados por el administrador
+  /// y deben proporcionarse en formato decimal.
   static double calcularComisionPorMedioPago({
     required String medioPago,
     required double montoTransaccion,
     required double valorUf,
+    required double porcentajeComision,
+    required double cargoFijoUf,
+    required double porcentajeIvaComision,
   }) {
     switch (medioPago) {
       case 'Tarjeta':
         return calcularComisionTarjeta(
           montoTransaccion: montoTransaccion,
-          porcentaje: 0.0144,
-          cargoFijoUf: 0.0018,
+          porcentaje: porcentajeComision,
+          cargoFijoUf: cargoFijoUf,
           valorUf: valorUf,
+          porcentajeIva: porcentajeIvaComision,
         );
 
       case 'Efectivo':
@@ -148,7 +155,6 @@ class CostosService {
         return 0;
     }
   }
-
   // ========================================================
   // PRECIO FINAL E IVA DE LA VENTA
   // ========================================================
@@ -168,23 +174,24 @@ class CostosService {
 
   /// Calcula el precio final que debe pagar el cliente.
   ///
-  /// El IVA del producto se incorpora en todos los medios
-  /// de pago.
+  /// El IVA del producto se incorpora en todos los medios de pago.
   ///
-  /// La opción Tarjeta utiliza la tarifa conservadora de
-  /// crédito nacional y protege el ingreso neto de MAELUX.
+  /// Cuando se selecciona Tarjeta, el cálculo protege el ingreso
+  /// neto esperado frente a la comisión financiera configurada.
   static double calcularPrecioFinalPedido({
     required String medioPago,
     required double montoNetoObjetivo,
     required double valorUf,
-    double porcentajeIva = 0.19,
+    required double porcentajeIva,
+    required double porcentajeComision,
+    required double cargoFijoUf,
   }) {
     switch (medioPago) {
       case 'Tarjeta':
         return _calcularPrecioFinalConTarjeta(
           montoNetoObjetivo: montoNetoObjetivo,
-          porcentajeComision: 0.0144,
-          cargoFijoUf: 0.0018,
+          porcentajeComision: porcentajeComision,
+          cargoFijoUf: cargoFijoUf,
           valorUf: valorUf,
           porcentajeIva: porcentajeIva,
         );
@@ -192,8 +199,6 @@ class CostosService {
       case 'Efectivo':
       case 'Transferencia':
       default:
-        // El IVA del producto se aplica independientemente
-        // del medio utilizado para realizar el pago.
         return montoNetoObjetivo * (1 + porcentajeIva);
     }
   }
