@@ -38,6 +38,45 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
   final valorUfController = TextEditingController();
 
   // ========================================================
+  // CONTROLADORES DE SUPUESTOS EDITABLES
+  // ========================================================
+
+  // Precio cobrado por cada kilowatt-hora consumido.
+  // Debe obtenerse del cargo por energía de la boleta eléctrica.
+  final costoKwhController = TextEditingController(text: '294');
+
+  // Consumo promedio de la impresora durante una hora de trabajo.
+  final consumoImpresoraKwhController = TextEditingController(text: '0.15');
+
+  // Costo por hora destinado a desgaste, mantenimiento
+  // y amortización de la impresora.
+  final desgasteHoraController = TextEditingController(text: '125');
+
+  // Porcentaje aplicado para cubrir fallas de impresión,
+  // repeticiones y pérdidas de material.
+  final margenErrorController = TextEditingController(text: '5');
+
+  // Gastos financieros mensuales que posteriormente se
+  // prorratean entre las ventas estimadas del mes.
+  final gastosFinancierosMensualesController = TextEditingController(
+    text: '30500',
+  );
+
+  // Cantidad de ventas utilizada para calcular el gasto
+  // financiero correspondiente a cada unidad.
+  final ventasMensualesEstimadasController = TextEditingController(text: '100');
+
+  // IVA aplicado a la venta del producto.
+  final ivaProductoController = TextEditingController(text: '19');
+
+  // Tarifa conservadora utilizada para pagos con tarjeta.
+  final comisionTarjetaController = TextEditingController(text: '1.44');
+
+  // Componente fijo contractual de la comisión,
+  // expresado en unidades de fomento.
+  final cargoFijoTarjetaUfController = TextEditingController(text: '0.0018');
+
+  // ========================================================
   // OPCIONES SELECCIONABLES
   // ========================================================
 
@@ -140,14 +179,39 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
     final double valorUf =
         double.tryParse(valorUfController.text.replaceAll(',', '.')) ?? 0;
 
-    // Convierte horas y minutos en una única duración.
-    // Este valor se utiliza para calcular electricidad y desgaste.
+    // ------------------------------------------------------
+    // LECTURA DE SUPUESTOS DE PRODUCCIÓN
+    // ------------------------------------------------------
 
+    // Precio cobrado por cada kilowatt-hora consumido.
+    final double costoKwh =
+        double.tryParse(costoKwhController.text.replaceAll(',', '.')) ?? 0;
+
+    // Consumo promedio de la impresora por cada hora de trabajo.
+    final double consumoImpresoraKwh =
+        double.tryParse(
+          consumoImpresoraKwhController.text.replaceAll(',', '.'),
+        ) ??
+        0;
+
+    // Costo por hora destinado al desgaste y mantenimiento.
+    final double desgasteHora =
+        double.tryParse(desgasteHoraController.text.replaceAll(',', '.')) ?? 0;
+
+    // Porcentaje destinado a cubrir fallas y repeticiones.
+    final double porcentajeMargenError =
+        double.tryParse(margenErrorController.text.replaceAll(',', '.')) ?? 0;
+
+    // ------------------------------------------------------
+    // CONVERSIÓN DEL TIEMPO DE IMPRESIÓN
+    // ------------------------------------------------------
+
+    // Convierte las horas y los minutos ingresados
+    // en una única duración expresada en minutos.
     final double minutosTotales = (horas * 60) + minutos;
 
-    // Convierte el tiempo a horas decimales para mostrarlo
-    // posteriormente en los resultados automáticos.
-
+    // Convierte la duración a horas decimales.
+    // Ejemplo: 11 horas y 50 minutos equivalen a 11,83 horas.
     final double tiempoDecimal = horas + (minutos / 60);
 
     // ------------------------------------------------------
@@ -162,6 +226,21 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
         const SnackBar(
           content: Text(
             'Completa el nombre, los gramos, el tiempo y la cantidad.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    if (costoKwh <= 0 ||
+        consumoImpresoraKwh <= 0 ||
+        desgasteHora < 0 ||
+        porcentajeMargenError < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Revisa el costo eléctrico, el consumo y los supuestos de producción.',
           ),
         ),
       );
@@ -196,16 +275,22 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
     );
 
     final double electricidad = CostosService.calcularElectricidad(
-      minutosTotales,
+      minutos: minutosTotales,
+      costoKwh: costoKwh,
+      consumoKwhHora: consumoImpresoraKwh,
     );
 
-    final double desgaste = CostosService.calcularDesgaste(minutosTotales);
+    final double desgaste = CostosService.calcularDesgaste(
+      minutos: minutosTotales,
+      desgasteHora: desgasteHora,
+    );
 
-    // Se aplica un 5 % sobre los costos directos para cubrir
-    // posibles fallas, repeticiones o pérdida de material.
-
-    final double margenError = (material + electricidad + desgaste) * 0.05;
-
+    // Convierte el porcentaje escrito por el administrador
+    // desde formato porcentual a formato decimal.
+    //
+    // Ejemplo: 5 % se transforma en 0,05.
+    final double margenError =
+        (material + electricidad + desgaste) * (porcentajeMargenError / 100);
     final double fabricacion = material + electricidad + desgaste + margenError;
 
     // ------------------------------------------------------
@@ -323,18 +408,458 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
     );
   }
 
+  /// Construye el desglose interno utilizado para revisar
+  /// los costos y las fórmulas de la cotización.
+  ///
+  /// Posteriormente, este contenido estará disponible
+  /// únicamente para usuarios con rol administrador.
+  Widget _construirDetalleAdministrativo() {
+    return Card(
+      child: ExpansionTile(
+        title: const Text(
+          'Ver detalle administrativo',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: const Text('Costos, comisión y cálculo interno'),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: [
+          // --------------------------------------------------
+          // COSTOS DE FABRICACIÓN
+          // --------------------------------------------------
+          const Divider(),
+
+          const Text(
+            'FABRICACIÓN',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            'Material: '
+            '\$${costoMaterial.toStringAsFixed(0)}',
+            textAlign: TextAlign.center,
+          ),
+
+          Text(
+            'Electricidad: '
+            '\$${costoElectricidad.toStringAsFixed(0)}',
+            textAlign: TextAlign.center,
+          ),
+
+          Text(
+            'Desgaste: '
+            '\$${costoDesgaste.toStringAsFixed(0)}',
+            textAlign: TextAlign.center,
+          ),
+
+          Text(
+            'Margen de error: '
+            '\$${costoMargenError.toStringAsFixed(0)}',
+            textAlign: TextAlign.center,
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            'Subtotal fabricación: '
+            '\$${subtotalFabricacion.toStringAsFixed(0)}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 16),
+
+          // --------------------------------------------------
+          // COSTOS OPERACIONALES
+          // --------------------------------------------------
+          const Divider(),
+
+          const Text(
+            'OPERACIÓN',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            'Packaging: '
+            '\$${costoPackaging.toStringAsFixed(0)}',
+            textAlign: TextAlign.center,
+          ),
+
+          Text(
+            'Gastos bancarios: '
+            '\$${costoGastosBancarios.toStringAsFixed(0)}',
+            textAlign: TextAlign.center,
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            'Subtotal operación: '
+            '\$${subtotalOperacional.toStringAsFixed(0)}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 16),
+
+          // --------------------------------------------------
+          // COSTO BASE DE MAELUX
+          // --------------------------------------------------
+          const Divider(),
+
+          Text(
+            'Costo base MAELUX: '
+            '\$${costoEmpresa.toStringAsFixed(0)}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 16),
+
+          // --------------------------------------------------
+          // PRECIO NETO ESTIMATIVO
+          // --------------------------------------------------
+          const Divider(),
+
+          const Text(
+            'PRECIO ESTIMATIVO',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            'Multiplicador aplicado: '
+            'x${multiplicadorComercial.toStringAsFixed(0)}',
+            textAlign: TextAlign.center,
+          ),
+
+          Text(
+            'Precio sugerido neto por unidad: '
+            '\$${precioSugerido.toStringAsFixed(0)}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+
+          Text('Cantidad: $cantidadUnidades', textAlign: TextAlign.center),
+
+          Text(
+            'Total neto preliminar: '
+            '\$${precioTotalNeto.toStringAsFixed(0)}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+
+          Text(
+            'Tiempo decimal: '
+            '${tiempoDecimalHoras.toStringAsFixed(2)} horas',
+            textAlign: TextAlign.center,
+          ),
+
+          const SizedBox(height: 16),
+
+          // --------------------------------------------------
+          // IMPUESTOS Y COMISIÓN
+          // --------------------------------------------------
+          const Divider(),
+
+          const Text(
+            'IMPUESTOS Y COMISIÓN',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            'Medio de pago: $medioPagoSeleccionado',
+            textAlign: TextAlign.center,
+          ),
+
+          Text(
+            'Comisión de tarjeta del pedido: '
+            '\$${costoComisionTarjeta.toStringAsFixed(0)}',
+            textAlign: TextAlign.center,
+          ),
+
+          Text(
+            'IVA del producto (19 %): '
+            '\$${costoIvaVenta.toStringAsFixed(0)}',
+            textAlign: TextAlign.center,
+          ),
+
+          const SizedBox(height: 16),
+
+          // --------------------------------------------------
+          // RESULTADOS FINALES
+          // --------------------------------------------------
+          const Divider(),
+
+          const Text(
+            'RESULTADOS FINALES',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            'Precio final por unidad: '
+            '\$${precioFinalUnitario.toStringAsFixed(0)}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+
+          Text(
+            'Total final del pedido: '
+            '\$${precioFinalPedido.toStringAsFixed(0)}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Construye la configuración interna utilizada por MAELUX.
+  ///
+  /// Estos valores permitirán modificar las reglas de producción,
+  /// operación, tributación y comisión sin editar el código.
+  ///
+  /// Durante esta fase los campos se muestran en la interfaz,
+  /// pero se conectarán progresivamente con las fórmulas.
+  Widget _construirSupuestosEditables() {
+    return Card(
+      child: ExpansionTile(
+        title: const Text(
+          'Supuestos editables',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: const Text('Configuración productiva y financiera'),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: [
+          // --------------------------------------------------
+          // SUPUESTOS DE PRODUCCIÓN
+          // --------------------------------------------------
+          const Divider(),
+
+          const Text(
+            'PRODUCCIÓN',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 16),
+
+          TextField(
+            controller: costoKwhController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Costo de electricidad',
+              prefixText: '\$ ',
+              suffixText: 'por kWh',
+              helperText: 'Utiliza el cargo por energía indicado en la boleta.',
+              border: OutlineInputBorder(),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          TextField(
+            controller: consumoImpresoraKwhController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Consumo promedio de la impresora',
+              suffixText: 'kWh/h',
+              helperText: 'Ejemplo: 0,15 kWh por cada hora de impresión.',
+              border: OutlineInputBorder(),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          TextField(
+            controller: desgasteHoraController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Desgaste y mantenimiento por hora',
+              prefixText: '\$ ',
+              border: OutlineInputBorder(),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          TextField(
+            controller: margenErrorController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Margen de error',
+              suffixText: '%',
+              border: OutlineInputBorder(),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // --------------------------------------------------
+          // SUPUESTOS FINANCIEROS
+          // --------------------------------------------------
+          const Divider(),
+
+          const Text(
+            'GASTOS FINANCIEROS',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 16),
+
+          TextField(
+            controller: gastosFinancierosMensualesController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Gastos financieros mensuales',
+              prefixText: '\$ ',
+              border: OutlineInputBorder(),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          TextField(
+            controller: ventasMensualesEstimadasController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Ventas mensuales estimadas',
+              suffixText: 'ventas',
+              border: OutlineInputBorder(),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // --------------------------------------------------
+          // SUPUESTOS TRIBUTARIOS
+          // --------------------------------------------------
+          const Divider(),
+
+          const Text(
+            'TRIBUTACIÓN',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 16),
+
+          TextField(
+            controller: ivaProductoController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'IVA del producto',
+              suffixText: '%',
+              helperText: 'Parámetro sensible. Valor actual: 19 %.',
+              border: OutlineInputBorder(),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // --------------------------------------------------
+          // SUPUESTOS DE TARJETA
+          // --------------------------------------------------
+          const Divider(),
+
+          const Text(
+            'PAGO CON TARJETA',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 16),
+
+          TextField(
+            controller: comisionTarjetaController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Comisión porcentual',
+              suffixText: '%',
+              border: OutlineInputBorder(),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          TextField(
+            controller: cargoFijoTarjetaUfController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Cargo fijo por transacción',
+              suffixText: 'UF',
+              border: OutlineInputBorder(),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          TextField(
+            controller: valorUfController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Valor UF de respaldo',
+              prefixText: '\$ ',
+              helperText:
+                  'Se reemplazará posteriormente por actualización automática.',
+              border: OutlineInputBorder(),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          const Text(
+            'Electricidad, consumo, desgaste y margen de error '
+            'ya se aplican al cálculo. Los supuestos financieros, '
+            'tributarios y de tarjeta se conectarán progresivamente.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontStyle: FontStyle.italic),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ========================================================
   // LIBERACIÓN DE RECURSOS
   // ========================================================
 
   @override
   void dispose() {
+    // Controladores utilizados en cada cotización.
     nombreDisenoController.dispose();
     gramosController.dispose();
     horasController.dispose();
     minutosController.dispose();
     cantidadController.dispose();
     valorUfController.dispose();
+
+    // Controladores de supuestos productivos.
+    costoKwhController.dispose();
+    consumoImpresoraKwhController.dispose();
+    desgasteHoraController.dispose();
+    margenErrorController.dispose();
+
+    // Controladores de supuestos financieros y tributarios.
+    gastosFinancierosMensualesController.dispose();
+    ventasMensualesEstimadasController.dispose();
+    ivaProductoController.dispose();
+    comisionTarjetaController.dispose();
+    cargoFijoTarjetaUfController.dispose();
 
     super.dispose();
   }
@@ -495,20 +1020,6 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
 
             const SizedBox(height: 16),
 
-            TextField(
-              controller: valorUfController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: 'Valor UF utilizado',
-                hintText: 'Ejemplo: 39150,25',
-                border: OutlineInputBorder(),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
             DropdownButtonFormField<String>(
               initialValue: medioPagoSeleccionado,
               decoration: const InputDecoration(
@@ -605,7 +1116,7 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
                         ),
                         Expanded(
                           child: _datoResumen(
-                            etiqueta: 'IVA del producto',
+                            etiqueta: 'IVA total del pedido',
                             valor: '\$${costoIvaVenta.toStringAsFixed(0)}',
                           ),
                         ),
@@ -646,212 +1157,18 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
             const SizedBox(height: 24),
 
             // ------------------------------------------------
-            // RESULTADOS DE FABRICACIÓN
+            // DETALLE ADMINISTRATIVO
             // ------------------------------------------------
-            const Divider(),
+            _construirDetalleAdministrativo(),
 
-            const Text(
-              'FABRICACIÓN',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              'Material: '
-              '\$${costoMaterial.toStringAsFixed(0)}',
-              textAlign: TextAlign.center,
-            ),
-
-            Text(
-              'Electricidad: '
-              '\$${costoElectricidad.toStringAsFixed(0)}',
-              textAlign: TextAlign.center,
-            ),
-
-            Text(
-              'Desgaste: '
-              '\$${costoDesgaste.toStringAsFixed(0)}',
-              textAlign: TextAlign.center,
-            ),
-
-            Text(
-              'Margen de error: '
-              '\$${costoMargenError.toStringAsFixed(0)}',
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              'Subtotal fabricación: '
-              '\$${subtotalFabricacion.toStringAsFixed(0)}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
 
             // ------------------------------------------------
-            // RESULTADOS OPERACIONALES
+            // SUPUESTOS EDITABLES
             // ------------------------------------------------
-            const Divider(),
+            _construirSupuestosEditables(),
 
-            const Text(
-              'OPERACIÓN',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              'Packaging: '
-              '\$${costoPackaging.toStringAsFixed(0)}',
-              textAlign: TextAlign.center,
-            ),
-
-            Text(
-              'Gastos bancarios: '
-              '\$${costoGastosBancarios.toStringAsFixed(0)}',
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              'Subtotal operación: '
-              '\$${subtotalOperacional.toStringAsFixed(0)}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 16),
-
-            // ------------------------------------------------
-            // COSTO BASE DE LA EMPRESA
-            // ------------------------------------------------
-            const Divider(),
-
-            Text(
-              'Costo base MAELUX: '
-              '\$${costoEmpresa.toStringAsFixed(0)}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 16),
-
-            // ------------------------------------------------
-            // PRECIO NETO PRELIMINAR
-            // ------------------------------------------------
-            const Divider(),
-
-            const Text(
-              'PRECIO ESTIMATIVO',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              'Multiplicador aplicado: '
-              'x${multiplicadorComercial.toStringAsFixed(0)}',
-              textAlign: TextAlign.center,
-            ),
-
-            Text(
-              'Precio sugerido neto: '
-              '\$${precioSugerido.toStringAsFixed(0)}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-
-            Text('Cantidad: $cantidadUnidades', textAlign: TextAlign.center),
-
-            Text(
-              'Total neto preliminar: '
-              '\$${precioTotalNeto.toStringAsFixed(0)}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-
-            Text(
-              'Tiempo decimal: '
-              '${tiempoDecimalHoras.toStringAsFixed(2)} horas',
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 16),
-
-            // ------------------------------------------------
-            // COMISIÓN SEGÚN MEDIO DE PAGO
-            // ------------------------------------------------
-            const Divider(),
-
-            const Text(
-              'COMISIÓN ESTIMADA',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              'Medio de pago: '
-              '$medioPagoSeleccionado',
-              textAlign: TextAlign.center,
-            ),
-
-            Text(
-              'Comisión de tarjeta del pedido: '
-              '\$${costoComisionTarjeta.toStringAsFixed(0)}',
-              textAlign: TextAlign.center,
-            ),
-
-            Text(
-              'IVA del producto (19 %): '
-              '\$${costoIvaVenta.toStringAsFixed(0)}',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-
-            // ------------------------------------------------
-            // PRECIO FINAL LISTO PARA COBRAR
-            // ------------------------------------------------
-            const Divider(),
-
-            const Text(
-              'PRECIO FINAL',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              'Precio final por unidad: '
-              '\$${precioFinalUnitario.toStringAsFixed(0)}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-
-            Text(
-              'Total final del pedido: '
-              '\$${precioFinalPedido.toStringAsFixed(0)}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 8),
-
-            const Text(
-              'IVA del producto incluido.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontStyle: FontStyle.italic),
-            ),
+            const SizedBox(height: 24),
           ],
         ),
       ),

@@ -27,29 +27,29 @@ class CostosService {
     return kilogramos * material.precioKg;
   }
 
-  /// Calcula el costo eléctrico asociado al tiempo de impresión.
-  ///
-  /// Actualmente utiliza un costo operacional de $27,5 por hora.
-  /// Este valor será reemplazado posteriormente por una fórmula
-  /// configurable basada en consumo de la impresora y valor del kWh.
-
-  static double calcularElectricidad(double minutos) {
-    const double costoHora = 27.5;
-
+  /// Calcula el costo eléctrico según la duración de la impresión,
+  /// el precio del kWh y el consumo promedio de la impresora.
+  static double calcularElectricidad({
+    required double minutos,
+    required double costoKwh,
+    required double consumoKwhHora,
+  }) {
     final double horas = minutos / 60;
 
-    return horas * costoHora;
+    return horas * consumoKwhHora * costoKwh;
   }
 
-  /// Calcula el desgaste y la amortización de la impresora.
+  /// Calcula el costo asociado al desgaste, mantenimiento
+  /// y amortización de la impresora.
   ///
-  /// Actualmente utiliza un costo de $125 por hora.
-  /// Posteriormente, este valor podrá depender de la impresora
-  /// seleccionada y de sus parámetros de mantenimiento.
-
-  static double calcularDesgaste(double minutos) {
-    const double desgasteHora = 125;
-
+  /// [minutos] representa la duración total de la impresión.
+  ///
+  /// [desgasteHora] corresponde al costo configurado
+  /// por cada hora de funcionamiento.
+  static double calcularDesgaste({
+    required double minutos,
+    required double desgasteHora,
+  }) {
     final double horas = minutos / 60;
 
     return horas * desgasteHora;
