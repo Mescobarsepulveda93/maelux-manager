@@ -22,6 +22,9 @@ class InsumoCard extends StatelessWidget {
   /// Acción ejecutada cuando se solicita editar el insumo.
   final VoidCallback? alEditar;
 
+  /// Acción ejecutada cuando se solicita eliminar el insumo.
+  final VoidCallback? alEliminar;
+
   /// Acción ejecutada cuando cambia el estado del insumo.
   final ValueChanged<bool>? alCambiarEstado;
 
@@ -29,8 +32,41 @@ class InsumoCard extends StatelessWidget {
     super.key,
     required this.insumo,
     this.alEditar,
+    this.alEliminar,
     this.alCambiarEstado,
   });
+
+  // ========================================================
+  // FORMATO DE CANTIDADES
+  // ========================================================
+
+  /// Convierte una cantidad numérica en texto legible.
+  ///
+  /// OBJETIVO:
+  /// Mostrar cantidades sin perder sus decimales.
+  ///
+  /// EJEMPLOS:
+  /// 100.0  → 100
+  /// 2.5    → 2,5
+  /// 0.75   → 0,75
+  ///
+  /// IMPORTANTE:
+  /// Esta función solo modifica la presentación.
+  /// No cambia el valor almacenado en el modelo.
+  String _formatearCantidad(double cantidad) {
+    // Convertimos el número original en texto.
+    final String texto = cantidad.toString();
+
+    // Si termina en .0, significa que es un
+    // número entero y eliminamos ese decimal.
+    if (texto.endsWith('.0')) {
+      return texto.substring(0, texto.length - 2);
+    }
+
+    // Para cantidades decimales utilizamos coma,
+    // siguiendo el formato habitual en Chile.
+    return texto.replaceAll('.', ',');
+  }
 
   // ========================================================
   // INTERFAZ DE LA TARJETA
@@ -78,6 +114,15 @@ class InsumoCard extends StatelessWidget {
                   tooltip: 'Editar insumo',
                   icon: const Icon(Icons.edit_outlined),
                 ),
+
+                IconButton(
+                  onPressed: alEliminar,
+                  tooltip: 'Eliminar insumo',
+                  icon: Icon(
+                    Icons.delete_outline,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
               ],
             ),
 
@@ -93,10 +138,19 @@ class InsumoCard extends StatelessWidget {
 
             const SizedBox(height: 8),
 
+            // ------------------------------------------------
+            // CANTIDAD COMPRADA
+            // ------------------------------------------------
+
+            /// Mostramos la cantidad con sus decimales
+            /// originales, sin redondear.
+            ///
+            /// La unidad de medida se obtiene del modelo
+            /// para conservar la información registrada.
             _DatoInsumo(
               etiqueta: 'Cantidad comprada',
               valor:
-                  '${insumo.cantidadComprada.toStringAsFixed(0)} '
+                  '${_formatearCantidad(insumo.cantidadComprada)} '
                   '${insumo.unidadMedida}',
             ),
 
