@@ -962,302 +962,310 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
       appBar: AppBar(title: const Text('Cotizador MAELUX')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ------------------------------------------------
-            // DATOS DE LA PIEZA
-            // ------------------------------------------------
-            const Text(
-              'DATOS DE LA PIEZA',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 16),
-
-            TextField(
-              controller: nombreDisenoController,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                labelText: 'Nombre del diseño',
-                border: OutlineInputBorder(),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            DropdownButtonFormField<Material3D>(
-              initialValue: materialSeleccionado,
-              decoration: const InputDecoration(
-                labelText: 'Tipo de filamento',
-                border: OutlineInputBorder(),
-              ),
-              items: materialesDemo.map((material) {
-                return DropdownMenuItem<Material3D>(
-                  value: material,
-                  child: Text(
-                    '${material.nombre} - '
-                    '\$${material.precioKg.toStringAsFixed(0)}/kg',
-                  ),
-                );
-              }).toList(),
-              onChanged: (nuevoMaterial) {
-                if (nuevoMaterial == null) {
-                  return;
-                }
-
-                setState(() {
-                  materialSeleccionado = nuevoMaterial;
-                });
-              },
-            ),
-
-            const SizedBox(height: 16),
-
-            TextField(
-              controller: gramosController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: 'Gramos de filamento',
-                border: OutlineInputBorder(),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Las horas y los minutos se ingresan por separado.
-            // La aplicación los transforma en minutos totales.
-            Row(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 900),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: horasController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Horas',
-                      border: OutlineInputBorder(),
-                    ),
+                // ------------------------------------------------
+                // DATOS DE LA PIEZA
+                // ------------------------------------------------
+                const Text(
+                  'DATOS DE LA PIEZA',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+
+                const SizedBox(height: 16),
+
+                TextField(
+                  controller: nombreDisenoController,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre del diseño',
+                    border: OutlineInputBorder(),
                   ),
                 ),
 
-                const SizedBox(width: 12),
+                const SizedBox(height: 16),
 
-                Expanded(
-                  child: TextField(
-                    controller: minutosController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Minutos',
-                      border: OutlineInputBorder(),
-                    ),
+                DropdownButtonFormField<Material3D>(
+                  initialValue: materialSeleccionado,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Tipo de filamento',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: materialesDemo.map((material) {
+                    return DropdownMenuItem<Material3D>(
+                      value: material,
+                      child: Text(
+                        '${material.nombre} - '
+                        '\$${material.precioKg.toStringAsFixed(0)}/kg',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (nuevoMaterial) {
+                    if (nuevoMaterial == null) {
+                      return;
+                    }
+
+                    setState(() {
+                      materialSeleccionado = nuevoMaterial;
+                    });
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                TextField(
+                  controller: gramosController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Gramos totales de filamento',
+                    helperText:
+                        'Incluye modelo, soportes, purga y torre de limpieza.',
+                    border: OutlineInputBorder(),
                   ),
                 ),
-              ],
-            ),
 
-            const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-            TextField(
-              controller: cantidadController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Cantidad de unidades',
-                border: OutlineInputBorder(),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // ------------------------------------------------
-            // CONFIGURACIÓN COMERCIAL
-            // ------------------------------------------------
-            const Text(
-              'CONFIGURACIÓN COMERCIAL',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 16),
-
-            DropdownButtonFormField<double>(
-              initialValue: multiplicadorComercial,
-              decoration: const InputDecoration(
-                labelText: 'Multiplicador comercial',
-                border: OutlineInputBorder(),
-              ),
-
-              items: multiplicadores.map((multiplicador) {
-                return DropdownMenuItem<double>(
-                  value: multiplicador,
-                  child: Text('x${multiplicador.toStringAsFixed(0)}'),
-                );
-              }).toList(),
-              onChanged: (nuevoMultiplicador) {
-                if (nuevoMultiplicador == null) {
-                  return;
-                }
-
-                setState(() {
-                  multiplicadorComercial = nuevoMultiplicador;
-                });
-              },
-            ),
-
-            const SizedBox(height: 16),
-
-            DropdownButtonFormField<String>(
-              initialValue: medioPagoSeleccionado,
-              decoration: const InputDecoration(
-                labelText: 'Medio de pago',
-                border: OutlineInputBorder(),
-              ),
-              items: mediosPago.map((medioPago) {
-                return DropdownMenuItem<String>(
-                  value: medioPago,
-                  child: Text(medioPago),
-                );
-              }).toList(),
-              onChanged: (nuevoMedioPago) {
-                if (nuevoMedioPago == null) {
-                  return;
-                }
-
-                setState(() {
-                  medioPagoSeleccionado = nuevoMedioPago;
-                });
-              },
-            ),
-
-            const SizedBox(height: 20),
-
-            ElevatedButton(
-              onPressed: calcularCosto,
-              child: const Text('Calcular'),
-            ),
-
-            const SizedBox(height: 24),
-
-            // ------------------------------------------------
-            // RESUMEN RÁPIDO DE LA COTIZACIÓN
-            // ------------------------------------------------
-            Card(
-              elevation: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                // Las horas y los minutos se ingresan por separado.
+                // La aplicación los transforma en minutos totales.
+                Row(
                   children: [
-                    const Text(
-                      'RESUMEN PARA COBRAR',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                    Expanded(
+                      child: TextField(
+                        controller: horasController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Horas',
+                          border: OutlineInputBorder(),
+                        ),
                       ),
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(width: 12),
 
-                    Text(
-                      nombreDisenoCotizado.isEmpty
-                          ? 'Producto sin calcular'
-                          : nombreDisenoCotizado,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                    Expanded(
+                      child: TextField(
+                        controller: minutosController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Minutos',
+                          border: OutlineInputBorder(),
+                        ),
                       ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _datoResumen(
-                            etiqueta: 'Cantidad',
-                            valor: '$cantidadUnidades',
-                          ),
-                        ),
-                        Expanded(
-                          child: _datoResumen(
-                            etiqueta: 'Medio de pago',
-                            valor: medioPagoSeleccionado,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _datoResumen(
-                            etiqueta: 'Precio unitario',
-                            valor:
-                                '\$${precioFinalUnitario.toStringAsFixed(0)}',
-                          ),
-                        ),
-                        Expanded(
-                          child: _datoResumen(
-                            etiqueta: 'IVA total del pedido',
-                            valor: '\$${costoIvaVenta.toStringAsFixed(0)}',
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const Divider(height: 32),
-
-                    const Text(
-                      'TOTAL FINAL DEL PEDIDO',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-
-                    const SizedBox(height: 4),
-
-                    Text(
-                      '\$${precioFinalPedido.toStringAsFixed(0)}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 30,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-
-                    const SizedBox(height: 4),
-
-                    const Text(
-                      'IVA del producto incluido',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontStyle: FontStyle.italic),
                     ),
                   ],
                 ),
-              ),
+
+                const SizedBox(height: 16),
+
+                TextField(
+                  controller: cantidadController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Cantidad de unidades',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // ------------------------------------------------
+                // CONFIGURACIÓN COMERCIAL
+                // ------------------------------------------------
+                const Text(
+                  'CONFIGURACIÓN COMERCIAL',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+
+                const SizedBox(height: 16),
+
+                DropdownButtonFormField<double>(
+                  initialValue: multiplicadorComercial,
+                  decoration: const InputDecoration(
+                    labelText: 'Multiplicador comercial',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: multiplicadores.map((multiplicador) {
+                    return DropdownMenuItem<double>(
+                      value: multiplicador,
+                      child: Text('x${multiplicador.toStringAsFixed(0)}'),
+                    );
+                  }).toList(),
+                  onChanged: (nuevoMultiplicador) {
+                    if (nuevoMultiplicador == null) {
+                      return;
+                    }
+
+                    setState(() {
+                      multiplicadorComercial = nuevoMultiplicador;
+                    });
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                DropdownButtonFormField<String>(
+                  initialValue: medioPagoSeleccionado,
+                  decoration: const InputDecoration(
+                    labelText: 'Medio de pago',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: mediosPago.map((medioPago) {
+                    return DropdownMenuItem<String>(
+                      value: medioPago,
+                      child: Text(medioPago),
+                    );
+                  }).toList(),
+                  onChanged: (nuevoMedioPago) {
+                    if (nuevoMedioPago == null) {
+                      return;
+                    }
+
+                    setState(() {
+                      medioPagoSeleccionado = nuevoMedioPago;
+                    });
+                  },
+                ),
+
+                const SizedBox(height: 20),
+
+                ElevatedButton(
+                  onPressed: calcularCosto,
+                  child: const Text('Calcular'),
+                ),
+
+                const SizedBox(height: 24),
+
+                // ------------------------------------------------
+                // RESUMEN RÁPIDO DE LA COTIZACIÓN
+                // ------------------------------------------------
+                Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          'RESUMEN PARA COBRAR',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        Text(
+                          nombreDisenoCotizado.isEmpty
+                              ? 'Producto sin calcular'
+                              : nombreDisenoCotizado,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _datoResumen(
+                                etiqueta: 'Cantidad',
+                                valor: '$cantidadUnidades',
+                              ),
+                            ),
+                            Expanded(
+                              child: _datoResumen(
+                                etiqueta: 'Medio de pago',
+                                valor: medioPagoSeleccionado,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _datoResumen(
+                                etiqueta: 'Precio unitario',
+                                valor:
+                                    '\$${precioFinalUnitario.toStringAsFixed(0)}',
+                              ),
+                            ),
+                            Expanded(
+                              child: _datoResumen(
+                                etiqueta: 'IVA total del pedido',
+                                valor: '\$${costoIvaVenta.toStringAsFixed(0)}',
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const Divider(height: 32),
+
+                        const Text(
+                          'TOTAL FINAL DEL PEDIDO',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+
+                        const SizedBox(height: 4),
+
+                        Text(
+                          '\$${precioFinalPedido.toStringAsFixed(0)}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 30,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        const SizedBox(height: 4),
+
+                        const Text(
+                          'IVA del producto incluido',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontStyle: FontStyle.italic),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // ------------------------------------------------
+                // DETALLE ADMINISTRATIVO
+                // ------------------------------------------------
+                _construirDetalleAdministrativo(),
+
+                const SizedBox(height: 24),
+
+                // ------------------------------------------------
+                // SUPUESTOS EDITABLES
+                // ------------------------------------------------
+                _construirSupuestosEditables(),
+
+                const SizedBox(height: 24),
+              ],
             ),
-
-            const SizedBox(height: 24),
-
-            // ------------------------------------------------
-            // DETALLE ADMINISTRATIVO
-            // ------------------------------------------------
-            _construirDetalleAdministrativo(),
-
-            const SizedBox(height: 24),
-
-            // ------------------------------------------------
-            // SUPUESTOS EDITABLES
-            // ------------------------------------------------
-            _construirSupuestosEditables(),
-
-            const SizedBox(height: 24),
-          ],
+          ),
         ),
       ),
     );

@@ -9,8 +9,8 @@ import '../models/insumo.dart';
 /// Presenta la información principal de un insumo registrado.
 ///
 /// La tarjeta no modifica directamente los datos. Las acciones
-/// de edición y cambio de estado se reciben desde la pantalla
-/// que administra la lista de insumos.
+/// de edición, eliminación y cambio de estado se reciben desde
+/// la pantalla encargada de administrar la lista de insumos.
 class InsumoCard extends StatelessWidget {
   // ========================================================
   // DATOS Y ACCIONES
@@ -25,7 +25,8 @@ class InsumoCard extends StatelessWidget {
   /// Acción ejecutada cuando se solicita eliminar el insumo.
   final VoidCallback? alEliminar;
 
-  /// Acción ejecutada cuando cambia el estado del insumo.
+  /// Acción ejecutada cuando cambia la disponibilidad
+  /// del insumo dentro del cotizador.
   final ValueChanged<bool>? alCambiarEstado;
 
   const InsumoCard({
@@ -40,32 +41,118 @@ class InsumoCard extends StatelessWidget {
   // FORMATO DE CANTIDADES
   // ========================================================
 
-  /// Convierte una cantidad numérica en texto legible.
+  /// Convierte una cantidad numérica en un texto legible.
   ///
-  /// OBJETIVO:
-  /// Mostrar cantidades sin perder sus decimales.
+  /// Los valores enteros se muestran sin decimales y los
+  /// valores fraccionarios utilizan coma como separador.
   ///
-  /// EJEMPLOS:
-  /// 100.0  → 100
-  /// 2.5    → 2,5
-  /// 0.75   → 0,75
+  /// Ejemplos:
   ///
-  /// IMPORTANTE:
-  /// Esta función solo modifica la presentación.
-  /// No cambia el valor almacenado en el modelo.
+  /// `100.0` se presenta como `100`.
+  ///
+  /// `2.5` se presenta como `2,5`.
+  ///
+  /// `0.75` se presenta como `0,75`.
+  ///
+  /// Esta función modifica únicamente la presentación.
+  /// El valor almacenado en el modelo permanece intacto.
   String _formatearCantidad(double cantidad) {
-    // Convertimos el número original en texto.
     final String texto = cantidad.toString();
 
-    // Si termina en .0, significa que es un
-    // número entero y eliminamos ese decimal.
+    // Si el valor termina en .0, corresponde a una cantidad
+    // entera y se elimina esa parte decimal.
     if (texto.endsWith('.0')) {
       return texto.substring(0, texto.length - 2);
     }
 
-    // Para cantidades decimales utilizamos coma,
-    // siguiendo el formato habitual en Chile.
+    // Las cantidades fraccionarias utilizan coma decimal
+    // para mantener el formato habitual en Chile.
     return texto.replaceAll('.', ',');
+  }
+
+  // ========================================================
+  // FORMATO DE UNIDADES DE MEDIDA
+  // ========================================================
+
+  /// Presenta la unidad de medida en singular o plural
+  /// según la cantidad comprada.
+  ///
+  /// Las unidades antiguas que no aparecen en el mapa se
+  /// conservan sin modificaciones para evitar generar
+  /// nombres incorrectos.
+  ///
+  /// Esta función modifica únicamente la presentación.
+  /// La unidad almacenada en el modelo no cambia.
+  String _formatearUnidad(double cantidad, String unidad) {
+    // Si la cantidad es exactamente una, se conserva
+    // la unidad registrada en singular.
+    if (cantidad == 1.0) {
+      return unidad;
+    }
+
+    // Plurales definidos para las unidades oficiales
+    // utilizadas por MAELUX.
+    const Map<String, String> plurales = {
+      'unidad': 'unidades',
+      'metro': 'metros',
+      'centímetro': 'centímetros',
+      'kilogramo': 'kilogramos',
+      'gramo': 'gramos',
+      'litro': 'litros',
+      'mililitro': 'mililitros',
+      'rollo': 'rollos',
+      'paquete': 'paquetes',
+      'hoja': 'hojas',
+    };
+
+    // Si la unidad no pertenece al listado oficial,
+    // se mantiene exactamente el valor original.
+    return plurales[unidad] ?? unidad;
+  }
+
+  // ========================================================
+  // FORMATO DE VALORES MONETARIOS
+  // ========================================================
+
+  /// Presenta un importe utilizando el formato habitual
+  /// de pesos chilenos.
+  ///
+  /// Los valores enteros se muestran sin decimales.
+  /// Los valores fraccionarios conservan dos decimales.
+  ///
+  /// Ejemplos:
+  ///
+  /// `3000` se presenta como `$3.000`.
+  ///
+  /// `1200` se presenta como `$1.200`.
+  ///
+  /// `1250.50` se presenta como `$1.250,50`.
+  ///
+  /// Esta función no modifica el importe original.
+  String _formatearPesos(double monto) {
+    // Se evita mostrar valores matemáticos inválidos.
+    if (!monto.isFinite) {
+      return '\$0';
+    }
+
+    final bool tieneDecimales = monto != monto.truncateToDouble();
+
+    // Los importes fraccionarios conservan dos decimales.
+    final String texto = monto.toStringAsFixed(tieneDecimales ? 2 : 0);
+
+    // Se separa la parte entera de la parte decimal.
+    final List<String> partes = texto.split('.');
+
+    // Se incorpora un punto como separador de miles.
+    final String enteros = partes[0].replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (coincidencia) => '${coincidencia[1]}.',
+    );
+
+    // Los decimales se muestran separados mediante una coma.
+    final String decimales = partes.length > 1 ? ',${partes[1]}' : '';
+
+    return '\$$enteros$decimales';
   }
 
   // ========================================================
@@ -82,7 +169,7 @@ class InsumoCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // ------------------------------------------------
-            // IDENTIFICACIÓN DEL INSUMO
+            // IDENTIFICACIÓN Y ACCIONES
             // ------------------------------------------------
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -133,33 +220,28 @@ class InsumoCard extends StatelessWidget {
             // ------------------------------------------------
             _DatoInsumo(
               etiqueta: 'Costo de compra',
-              valor: '\$${insumo.costoCompra.toStringAsFixed(0)}',
+              valor: _formatearPesos(insumo.costoCompra),
             ),
 
             const SizedBox(height: 8),
 
-            // ------------------------------------------------
-            // CANTIDAD COMPRADA
-            // ------------------------------------------------
-
-            /// Mostramos la cantidad con sus decimales
-            /// originales, sin redondear.
-            ///
-            /// La unidad de medida se obtiene del modelo
-            /// para conservar la información registrada.
+            // La cantidad conserva sus decimales y la unidad
+            // se muestra en singular o plural.
             _DatoInsumo(
               etiqueta: 'Cantidad comprada',
               valor:
                   '${_formatearCantidad(insumo.cantidadComprada)} '
-                  '${insumo.unidadMedida}',
+                  '${_formatearUnidad(insumo.cantidadComprada, insumo.unidadMedida)}',
             ),
 
             const SizedBox(height: 8),
 
+            // El coste unitario utiliza siempre la unidad
+            // registrada en singular.
             _DatoInsumo(
               etiqueta: 'Costo unitario',
               valor:
-                  '\$${insumo.costoUnitario.toStringAsFixed(0)} '
+                  '${_formatearPesos(insumo.costoUnitario)} '
                   'por ${insumo.unidadMedida}',
               destacado: true,
             ),
@@ -189,9 +271,16 @@ class InsumoCard extends StatelessWidget {
 // DATO COMPACTO DEL INSUMO
 // ==========================================================
 
-/// Presenta una etiqueta y su valor manteniendo una
-/// distribución uniforme dentro de la tarjeta.
+/// Presenta una etiqueta y su valor mediante una distribución
+/// uniforme dentro de la tarjeta.
+///
+/// El valor utiliza un espacio flexible para reducir el riesgo
+/// de desbordamientos en pantallas pequeñas.
 class _DatoInsumo extends StatelessWidget {
+  // ========================================================
+  // DATOS DEL COMPONENTE
+  // ========================================================
+
   final String etiqueta;
   final String valor;
   final bool destacado;
@@ -202,6 +291,10 @@ class _DatoInsumo extends StatelessWidget {
     this.destacado = false,
   });
 
+  // ========================================================
+  // INTERFAZ DEL COMPONENTE
+  // ========================================================
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -210,11 +303,14 @@ class _DatoInsumo extends StatelessWidget {
 
         const SizedBox(width: 16),
 
-        Text(
-          valor,
-          textAlign: TextAlign.end,
-          style: TextStyle(
-            fontWeight: destacado ? FontWeight.bold : FontWeight.normal,
+        Flexible(
+          child: Text(
+            valor,
+            textAlign: TextAlign.end,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontWeight: destacado ? FontWeight.bold : FontWeight.normal,
+            ),
           ),
         ),
       ],

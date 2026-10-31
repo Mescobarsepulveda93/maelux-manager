@@ -162,6 +162,52 @@ class _InsumoFormScreenState extends State<InsumoFormScreen> {
   }
 
   // ========================================================
+  // FORMATO DE VALORES MONETARIOS
+  // ========================================================
+
+  /// Presenta un importe utilizando el formato habitual
+  /// de pesos chilenos.
+  ///
+  /// Los valores enteros se muestran sin decimales.
+  /// Los valores fraccionarios conservan dos decimales.
+  ///
+  /// Ejemplos:
+  ///
+  /// `5` se presenta como `$5`.
+  ///
+  /// `1200` se presenta como `$1.200`.
+  ///
+  /// `1250.50` se presenta como `$1.250,50`.
+  ///
+  /// Esta función modifica únicamente la presentación.
+  /// El importe original mantiene toda su precisión.
+  String _formatearPesos(double monto) {
+    // Se evita mostrar valores matemáticos inválidos.
+    if (!monto.isFinite) {
+      return '\$0';
+    }
+
+    final bool tieneDecimales = monto != monto.truncateToDouble();
+
+    // Los importes fraccionarios conservan dos decimales.
+    final String texto = monto.toStringAsFixed(tieneDecimales ? 2 : 0);
+
+    // Se separa la parte entera de la parte decimal.
+    final List<String> partes = texto.split('.');
+
+    // Se incorpora un punto como separador de miles.
+    final String enteros = partes[0].replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (coincidencia) => '${coincidencia[1]}.',
+    );
+
+    // Los decimales se muestran separados mediante una coma.
+    final String decimales = partes.length > 1 ? ',${partes[1]}' : '';
+
+    return '\$$enteros$decimales';
+  }
+
+  // ========================================================
   // CÁLCULO DEL COSTO UNITARIO
   // ========================================================
 
@@ -308,262 +354,268 @@ class _InsumoFormScreenState extends State<InsumoFormScreen> {
       // ------------------------------------------------------
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // ------------------------------------------------
-              // IDENTIFICACIÓN DEL INSUMO
-              // ------------------------------------------------
-              const Text(
-                'IDENTIFICACIÓN',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 16),
-
-              TextFormField(
-                controller: nombreController,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  labelText: 'Nombre del insumo',
-                  hintText: 'Ejemplo: Bolsa transparente',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (valor) {
-                  if (valor == null || valor.trim().isEmpty) {
-                    return 'Introduce el nombre del insumo.';
-                  }
-
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 16),
-
-              DropdownButtonFormField<String>(
-                initialValue: categoriaSeleccionada,
-                decoration: const InputDecoration(
-                  labelText: 'Categoría',
-                  border: OutlineInputBorder(),
-                ),
-                items: categoriasInsumos.map((categoria) {
-                  return DropdownMenuItem<String>(
-                    value: categoria,
-                    child: Text(categoria),
-                  );
-                }).toList(),
-                onChanged: (categoria) {
-                  if (categoria == null) {
-                    return;
-                  }
-
-                  setState(() {
-                    categoriaSeleccionada = categoria;
-                  });
-                },
-              ),
-
-              const SizedBox(height: 16),
-
-              DropdownButtonFormField<String>(
-                initialValue: unidadMedidaSeleccionada,
-
-                // Permite que el contenido aproveche el ancho disponible
-                // y evita desbordamientos en unidades con nombres largos.
-                isExpanded: true,
-
-                decoration: const InputDecoration(
-                  labelText: 'Unidad de medida',
-                  helperText:
-                      'Selecciona cómo se controlará el consumo del insumo.',
-                  border: OutlineInputBorder(),
-                ),
-
-                items: [
-                  // Si la unidad guardada ya no pertenece a la lista oficial,
-                  // se incorpora temporalmente al desplegable.
-                  //
-                  // Esto permite conservar unidades de versiones anteriores
-                  // sin modificar accidentalmente los registros existentes.
-                  if (!unidadesMedida.contains(unidadMedidaSeleccionada))
-                    DropdownMenuItem<String>(
-                      value: unidadMedidaSeleccionada,
-                      child: Text(
-                        '$unidadMedidaSeleccionada (unidad antigua)',
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-
-                  // Se agregan todas las unidades oficiales definidas
-                  // en unidades_medida.dart.
-                  ...unidadesMedida.map((unidad) {
-                    return DropdownMenuItem<String>(
-                      value: unidad,
-                      child: Text(unidad, overflow: TextOverflow.ellipsis),
-                    );
-                  }),
-                ],
-
-                onChanged: (unidad) {
-                  if (unidad == null) {
-                    return;
-                  }
-
-                  setState(() {
-                    unidadMedidaSeleccionada = unidad;
-                  });
-                },
-              ),
-
-              // Si la unidad no existe en el listado oficial,
-              // se informa al usuario sin obligarlo a cambiarla.
-              //
-              // No se realiza ninguna conversión automática porque
-              // podría alterar el significado de la cantidad registrada.
-              if (!unidadesMedida.contains(unidadMedidaSeleccionada))
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Esta unidad pertenece a un registro antiguo. '
-                    'Puedes conservarla o seleccionar otra.',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                      fontSize: 12,
-                    ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 900),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // ------------------------------------------------
+                  // IDENTIFICACIÓN DEL INSUMO
+                  // ------------------------------------------------
+                  const Text(
+                    'IDENTIFICACIÓN',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                ),
 
-              const SizedBox(height: 24),
+                  const SizedBox(height: 16),
 
-              // ------------------------------------------------
-              // INFORMACIÓN DE COMPRA
-              // ------------------------------------------------
-              const Text(
-                'INFORMACIÓN DE COMPRA',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+                  TextFormField(
+                    controller: nombreController,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre del insumo',
+                      hintText: 'Ejemplo: Bolsa transparente',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (valor) {
+                      if (valor == null || valor.trim().isEmpty) {
+                        return 'Introduce el nombre del insumo.';
+                      }
 
-              const SizedBox(height: 16),
+                      return null;
+                    },
+                  ),
 
-              TextFormField(
-                controller: costoCompraController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Costo total de compra',
-                  hintText: 'Ejemplo: 5000',
-                  prefixText: '\$ ',
-                  helperText: 'Introduce el valor sin separadores de miles.',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (valor) {
-                  return _validarNumeroPositivo(
-                    valor,
-                    nombreCampo: 'el costo total de compra',
-                  );
-                },
-              ),
+                  const SizedBox(height: 16),
 
-              const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: categoriaSeleccionada,
+                    decoration: const InputDecoration(
+                      labelText: 'Categoría',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: categoriasInsumos.map((categoria) {
+                      return DropdownMenuItem<String>(
+                        value: categoria,
+                        child: Text(categoria),
+                      );
+                    }).toList(),
+                    onChanged: (categoria) {
+                      if (categoria == null) {
+                        return;
+                      }
 
-              TextFormField(
-                controller: cantidadCompradaController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Cantidad comprada',
-                  hintText: 'Ejemplo: 100 o 2,5',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (valor) {
-                  return _validarNumeroPositivo(
-                    valor,
-                    nombreCampo: 'la cantidad comprada',
-                  );
-                },
-              ),
+                      setState(() {
+                        categoriaSeleccionada = categoria;
+                      });
+                    },
+                  ),
 
-              const SizedBox(height: 24),
+                  const SizedBox(height: 16),
 
-              // ------------------------------------------------
-              // COSTO UNITARIO CALCULADO
-              // ------------------------------------------------
-              Card(
-                color: Theme.of(context).colorScheme.primaryContainer,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      const Text(
-                        'COSTO UNITARIO CALCULADO',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
+                  DropdownButtonFormField<String>(
+                    initialValue: unidadMedidaSeleccionada,
 
-                      const SizedBox(height: 8),
+                    // Permite que el contenido aproveche el ancho disponible
+                    // y evita desbordamientos en unidades con nombres largos.
+                    isExpanded: true,
 
-                      Text(
-                        '\$${costoUnitarioCalculado.toStringAsFixed(2)}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
+                    decoration: const InputDecoration(
+                      labelText: 'Unidad de medida',
+                      helperText:
+                          'Selecciona cómo se controlará el consumo del insumo.',
+                      border: OutlineInputBorder(),
+                    ),
+
+                    items: [
+                      // Si la unidad guardada ya no pertenece a la lista oficial,
+                      // se incorpora temporalmente al desplegable.
+                      //
+                      // Esto permite conservar unidades de versiones anteriores
+                      // sin modificar accidentalmente los registros existentes.
+                      if (!unidadesMedida.contains(unidadMedidaSeleccionada))
+                        DropdownMenuItem<String>(
+                          value: unidadMedidaSeleccionada,
+                          child: Text(
+                            '$unidadMedidaSeleccionada (unidad antigua)',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+
+                      // Se agregan todas las unidades oficiales definidas
+                      // en unidades_medida.dart.
+                      ...unidadesMedida.map((unidad) {
+                        return DropdownMenuItem<String>(
+                          value: unidad,
+                          child: Text(unidad, overflow: TextOverflow.ellipsis),
+                        );
+                      }),
+                    ],
+
+                    onChanged: (unidad) {
+                      if (unidad == null) {
+                        return;
+                      }
+
+                      setState(() {
+                        unidadMedidaSeleccionada = unidad;
+                      });
+                    },
+                  ),
+
+                  // Si la unidad no existe en el listado oficial,
+                  // se informa al usuario sin obligarlo a cambiarla.
+                  //
+                  // No se realiza ninguna conversión automática porque
+                  // podría alterar el significado de la cantidad registrada.
+                  if (!unidadesMedida.contains(unidadMedidaSeleccionada))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Esta unidad pertenece a un registro antiguo. '
+                        'Puedes conservarla o seleccionar otra.',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                          fontSize: 12,
                         ),
                       ),
+                    ),
 
-                      const SizedBox(height: 4),
+                  const SizedBox(height: 24),
 
-                      Text(
-                        'por $unidadMedidaSeleccionada',
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+                  // ------------------------------------------------
+                  // INFORMACIÓN DE COMPRA
+                  // ------------------------------------------------
+                  const Text(
+                    'INFORMACIÓN DE COMPRA',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                ),
+
+                  const SizedBox(height: 16),
+
+                  TextFormField(
+                    controller: costoCompraController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Costo total de compra',
+                      hintText: 'Ejemplo: 5000',
+                      prefixText: '\$ ',
+                      helperText:
+                          'Introduce el valor sin separadores de miles.',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (valor) {
+                      return _validarNumeroPositivo(
+                        valor,
+                        nombreCampo: 'el costo total de compra',
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  TextFormField(
+                    controller: cantidadCompradaController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Cantidad comprada',
+                      hintText: 'Ejemplo: 100 o 2,5',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (valor) {
+                      return _validarNumeroPositivo(
+                        valor,
+                        nombreCampo: 'la cantidad comprada',
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // ------------------------------------------------
+                  // COSTO UNITARIO CALCULADO
+                  // ------------------------------------------------
+                  Card(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          const Text(
+                            'COSTO UNITARIO CALCULADO',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          Text(
+                            _formatearPesos(costoUnitarioCalculado),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+
+                          const SizedBox(height: 4),
+
+                          Text(
+                            'por $unidadMedidaSeleccionada',
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ------------------------------------------------
+                  // DISPONIBILIDAD DEL INSUMO
+                  // ------------------------------------------------
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Disponible en el cotizador'),
+                    subtitle: Text(
+                      insumoActivo
+                          ? 'El insumo estará activo.'
+                          : 'El insumo estará desactivado.',
+                    ),
+                    value: insumoActivo,
+                    onChanged: (activo) {
+                      setState(() {
+                        insumoActivo = activo;
+                      });
+                    },
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // ------------------------------------------------
+                  // ACCIÓN PRINCIPAL
+                  // ------------------------------------------------
+                  ElevatedButton.icon(
+                    onPressed: _guardarInsumo,
+                    icon: const Icon(Icons.save_outlined),
+                    label: Text(
+                      estaEditando ? 'GUARDAR CAMBIOS' : 'AGREGAR INSUMO',
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+                ],
               ),
-
-              const SizedBox(height: 16),
-
-              // ------------------------------------------------
-              // DISPONIBILIDAD DEL INSUMO
-              // ------------------------------------------------
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Disponible en el cotizador'),
-                subtitle: Text(
-                  insumoActivo
-                      ? 'El insumo estará activo.'
-                      : 'El insumo estará desactivado.',
-                ),
-                value: insumoActivo,
-                onChanged: (activo) {
-                  setState(() {
-                    insumoActivo = activo;
-                  });
-                },
-              ),
-
-              const SizedBox(height: 24),
-
-              // ------------------------------------------------
-              // ACCIÓN PRINCIPAL
-              // ------------------------------------------------
-              ElevatedButton.icon(
-                onPressed: _guardarInsumo,
-                icon: const Icon(Icons.save_outlined),
-                label: Text(
-                  estaEditando ? 'GUARDAR CAMBIOS' : 'AGREGAR INSUMO',
-                ),
-              ),
-
-              const SizedBox(height: 24),
-            ],
+            ),
           ),
         ),
       ),

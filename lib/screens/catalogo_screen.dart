@@ -11,9 +11,8 @@ import '../widgets/producto_card.dart';
 /// de MAELUX.
 ///
 /// Actualmente utiliza datos temporales almacenados en
-/// `productos_demo.dart`. Posteriormente, los productos
-/// procederán del almacenamiento local o de la base de datos.
-///
+/// productos_demo.dart. Posteriormente, los productos
+/// procederán del almacenamiento local o de una base de datos.
 class CatalogoScreen extends StatelessWidget {
   const CatalogoScreen({super.key});
 
@@ -26,7 +25,6 @@ class CatalogoScreen extends StatelessWidget {
   ///
   /// Esta acción se reemplazará posteriormente por la navegación
   /// hacia la pantalla de creación de productos.
-  ///
   void _mostrarFuncionPendiente(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -49,12 +47,22 @@ class CatalogoScreen extends StatelessWidget {
       // La lista se genera dinámicamente a partir de los
       // productos disponibles en la fuente de datos actual.
       body: ListView.builder(
-        padding: const EdgeInsets.only(top: 8, bottom: 88),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
         itemCount: productosDemo.length,
         itemBuilder: (context, index) {
           final producto = productosDemo[index];
 
-          return ProductoCard(producto: producto);
+          // En pantallas grandes, cada tarjeta utiliza un ancho
+          // máximo de 900 píxeles y permanece centrada.
+          //
+          // En dispositivos pequeños, la tarjeta utiliza todo
+          // el ancho disponible respetando el margen exterior.
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 900),
+              child: ProductoCard(producto: producto),
+            ),
+          );
         },
       ),
 

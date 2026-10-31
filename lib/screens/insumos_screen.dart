@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../data/insumos_demo.dart';
+import '../data/insumos_repository.dart';
 import '../models/insumo.dart';
 import '../widgets/insumo_card.dart';
 import 'insumo_form_screen.dart';
@@ -12,9 +12,12 @@ import 'insumo_form_screen.dart';
 /// Permite consultar y administrar los insumos utilizados
 /// en la fabricación y presentación de productos MAELUX.
 ///
-/// Durante esta fase, los cambios se conservan mientras
-/// la pantalla permanece abierta. El almacenamiento permanente
-/// se incorporará posteriormente.
+/// La pantalla utiliza [InsumosRepository] como fuente
+/// compartida de datos. Esto permite que Gestión de insumos
+/// y el Cotizador accedan a la misma colección.
+///
+/// Durante esta fase, los cambios permanecen disponibles
+/// mientras la aplicación continúa ejecutándose.
 class InsumosScreen extends StatefulWidget {
   const InsumosScreen({super.key});
 
@@ -24,61 +27,51 @@ class InsumosScreen extends StatefulWidget {
 
 class _InsumosScreenState extends State<InsumosScreen> {
   // ========================================================
-  // ESTADO DE LA PANTALLA
+  // REPOSITORIO COMPARTIDO
   // ========================================================
 
-  /// Copia modificable de los insumos demostrativos.
-  ///
-  /// Esta lista permite agregar, editar, activar y desactivar
-  /// registros sin modificar directamente la lista original.
-  late final List<Insumo> insumos;
-
-  // ========================================================
-  // INICIALIZACIÓN DE LA PANTALLA
-  // ========================================================
-
-  @override
-  void initState() {
-    super.initState();
-
-    insumos = List<Insumo>.from(insumosDemo);
-  }
+  /// Repositorio único utilizado para consultar y modificar
+  /// los insumos registrados durante la sesión.
+  final InsumosRepository repositorio = InsumosRepository.instancia;
 
   // ========================================================
   // VALORES CALCULADOS
   // ========================================================
 
-  /// Devuelve la cantidad de insumos que se encuentran
-  /// disponibles para su futura selección en el cotizador.
+  /// Devuelve la cantidad de insumos disponibles
+  /// para su futura selección en el cotizador.
   int get cantidadInsumosActivos {
-    return insumos.where((insumo) => insumo.activo).length;
+    return repositorio.cantidadActivos;
   }
 
   // ========================================================
   // CREACIÓN DE INSUMOS
   // ========================================================
 
-  /// Abre el formulario vacío y agrega el insumo devuelto
-  /// cuando el usuario completa correctamente el registro.
+  /// Abre el formulario vacío y agrega al repositorio
+  /// el insumo devuelto por el formulario.
   Future<void> _agregarInsumo() async {
     final Insumo? nuevoInsumo = await Navigator.push<Insumo>(
       context,
       MaterialPageRoute(builder: (context) => const InsumoFormScreen()),
     );
 
-    // Si el usuario regresa sin guardar, el resultado será nulo
-    // y la lista debe mantenerse sin modificaciones.
+    // Si el usuario regresa sin guardar, el formulario
+    // devuelve un valor nulo y no se modifica el repositorio.
     if (nuevoInsumo == null || !mounted) {
       return;
     }
 
     setState(() {
-      insumos.add(nuevoInsumo);
+      repositorio.agregar(nuevoInsumo);
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Insumo "${nuevoInsumo.nombre}" agregado correctamente.'),
+        content: Text(
+          'Insumo "${nuevoInsumo.nombre}" '
+          'agregado correctamente.',
+        ),
       ),
     );
   }
@@ -88,9 +81,15 @@ class _InsumosScreenState extends State<InsumosScreen> {
   // ========================================================
 
   /// Abre el formulario con los datos del insumo seleccionado
-  /// y reemplaza el registro cuando se guardan los cambios.
+  /// y actualiza el registro cuando se guardan los cambios.
   Future<void> _editarInsumo(int indice) async {
-    final Insumo insumoActual = insumos[indice];
+    final List<Insumo> insumosActuales = repositorio.obtenerTodos();
+
+    if (indice < 0 || indice >= insumosActuales.length) {
+      return;
+    }
+
+    final Insumo insumoActual = insumosActuales[indice];
 
     final Insumo? insumoEditado = await Navigator.push<Insumo>(
       context,
@@ -99,35 +98,54 @@ class _InsumosScreenState extends State<InsumosScreen> {
       ),
     );
 
-    // Si el usuario regresa con la flecha sin guardar,
-    // se conserva el registro original.
+    // Si se regresa sin guardar, se conserva
+    // el registro original.
     if (insumoEditado == null || !mounted) {
       return;
     }
 
     setState(() {
-      insumos[indice] = insumoEditado;
+      repositorio.actualizar(indice: indice, insumo: insumoEditado);
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Insumo "${insumoEditado.nombre}" actualizado correctamente.',
+          'Insumo "${insumoEditado.nombre}" '
+          'actualizado correctamente.',
         ),
       ),
     );
   }
 
   // ========================================================
+  // CAMBIO DE ESTADO
+  // ========================================================
+
+  /// Activa o desactiva un insumo sin eliminarlo.
+  ///
+  /// Un insumo desactivado continúa registrado, pero no
+  /// será entregado por la consulta de insumos activos.
+  void _cambiarEstadoInsumo({required int indice, required bool activo}) {
+    setState(() {
+      repositorio.cambiarEstado(indice: indice, activo: activo);
+    });
+  }
+
+  // ========================================================
   // ELIMINACIÓN DE INSUMOS
   // ========================================================
 
-  /// Solicita confirmación antes de eliminar un insumo.
-  ///
-  /// El cuadro de diálogo permite cancelar la operación
-  /// para evitar eliminaciones accidentales.
+  /// Solicita confirmación antes de eliminar definitivamente
+  /// un insumo del repositorio compartido.
   Future<void> _confirmarEliminacion(int indice) async {
-    final Insumo insumo = insumos[indice];
+    final List<Insumo> insumosActuales = repositorio.obtenerTodos();
+
+    if (indice < 0 || indice >= insumosActuales.length) {
+      return;
+    }
+
+    final Insumo insumo = insumosActuales[indice];
 
     final bool? confirmar = await showDialog<bool>(
       context: context,
@@ -136,7 +154,8 @@ class _InsumosScreenState extends State<InsumosScreen> {
           title: const Text('Eliminar insumo'),
           content: Text(
             '¿Deseas eliminar "${insumo.nombre}"? '
-            'Esta acción no se puede deshacer durante esta sesión.',
+            'Esta acción no puede deshacerse durante '
+            'la sesión actual.',
           ),
           actions: [
             TextButton(
@@ -156,14 +175,14 @@ class _InsumosScreenState extends State<InsumosScreen> {
       },
     );
 
-    // Si el usuario cancela, cierra el diálogo o la pantalla
-    // deja de estar disponible, la lista no se modifica.
+    // Si se cancela la operación o se cierra el cuadro
+    // de diálogo, el repositorio no se modifica.
     if (confirmar != true || !mounted) {
       return;
     }
 
     setState(() {
-      insumos.removeAt(indice);
+      repositorio.eliminar(indice);
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -172,25 +191,15 @@ class _InsumosScreenState extends State<InsumosScreen> {
   }
 
   // ========================================================
-  // ESTADO DE LOS INSUMOS
-  // ========================================================
-
-  /// Activa o desactiva un insumo sin eliminarlo de la lista.
-  ///
-  /// Los insumos desactivados permanecerán registrados,
-  /// pero no estarán disponibles posteriormente en el cotizador.
-  void _cambiarEstadoInsumo({required int indice, required bool activo}) {
-    setState(() {
-      insumos[indice] = insumos[indice].copiarCon(activo: activo);
-    });
-  }
-
-  // ========================================================
   // INTERFAZ DE LA PANTALLA
   // ========================================================
 
   @override
   Widget build(BuildContext context) {
+    // Se obtiene una copia actualizada para construir
+    // la lista visible durante esta reconstrucción.
+    final List<Insumo> insumosActuales = repositorio.obtenerTodos();
+
     return Scaffold(
       appBar: AppBar(title: const Text('Gestión de insumos')),
       body: Column(
@@ -200,26 +209,31 @@ class _InsumosScreenState extends State<InsumosScreen> {
           // ------------------------------------------------
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Insumos disponibles',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 900),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Insumos disponibles',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Text(
+                          '$cantidadInsumosActivos '
+                          'de ${repositorio.cantidadTotal}',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      '$cantidadInsumosActivos '
-                      'de ${insumos.length}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -229,31 +243,41 @@ class _InsumosScreenState extends State<InsumosScreen> {
           // LISTA DE INSUMOS
           // ------------------------------------------------
           Expanded(
-            child: insumos.isEmpty
+            child: insumosActuales.isEmpty
                 ? const Center(child: Text('No hay insumos registrados.'))
                 : ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-                    itemCount: insumos.length,
+                    itemCount: insumosActuales.length,
                     itemBuilder: (context, indice) {
-                      final Insumo insumo = insumos[indice];
+                      final Insumo insumo = insumosActuales[indice];
 
-                      return InsumoCard(
-                        insumo: insumo,
+                      return Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 900),
+                          child: InsumoCard(
+                            insumo: insumo,
 
-                        // Abre el formulario con los datos actuales.
-                        alEditar: () {
-                          _editarInsumo(indice);
-                        },
+                            // Abre el formulario con los datos actuales
+                            // del insumo seleccionado.
+                            alEditar: () {
+                              _editarInsumo(indice);
+                            },
 
-                        // Solicita confirmación antes de eliminar.
-                        alEliminar: () {
-                          _confirmarEliminacion(indice);
-                        },
+                            // Solicita confirmación antes de eliminar
+                            // definitivamente el registro.
+                            alEliminar: () {
+                              _confirmarEliminacion(indice);
+                            },
 
-                        // Cambia la disponibilidad del insumo.
-                        alCambiarEstado: (activo) {
-                          _cambiarEstadoInsumo(indice: indice, activo: activo);
-                        },
+                            // Actualiza la disponibilidad del insumo.
+                            alCambiarEstado: (activo) {
+                              _cambiarEstadoInsumo(
+                                indice: indice,
+                                activo: activo,
+                              );
+                            },
+                          ),
+                        ),
                       );
                     },
                   ),

@@ -37,92 +37,96 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('MAELUX Manager')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ------------------------------------------------
-            // RESUMEN FINANCIERO
-            // ------------------------------------------------
-            const Text(
-              'RESUMEN FINANCIERO',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 900),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ------------------------------------------------
+                // RESUMEN FINANCIERO
+                // ------------------------------------------------
+                const Text(
+                  'RESUMEN FINANCIERO',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+
+                const SizedBox(height: 16),
+
+                _construirTarjetaResumen(
+                  titulo: 'Capital inicial',
+                  valor: '\$1.000.000',
+                  icono: Icons.savings,
+                ),
+
+                _construirTarjetaResumen(
+                  titulo: 'Capital recuperado',
+                  valor: '\$0',
+                  icono: Icons.trending_up,
+                ),
+
+                _construirTarjetaResumen(
+                  titulo: 'Ganancia empresa',
+                  valor: '\$0',
+                  icono: Icons.business_center,
+                ),
+
+                _construirTarjetaResumen(
+                  titulo: 'Ganancia personal',
+                  valor: '\$0',
+                  icono: Icons.person,
+                ),
+
+                const SizedBox(height: 24),
+
+                // ------------------------------------------------
+                // MÓDULOS PRINCIPALES
+                // ------------------------------------------------
+                const Text(
+                  'MÓDULOS',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+
+                const SizedBox(height: 16),
+
+                _construirBotonModulo(
+                  texto: 'CATÁLOGO',
+                  icono: Icons.inventory_2_outlined,
+                  alPresionar: () {
+                    _abrirPantalla(context, const CatalogoScreen());
+                  },
+                ),
+
+                const SizedBox(height: 12),
+
+                _construirBotonModulo(
+                  texto: 'COTIZADOR',
+                  icono: Icons.calculate_outlined,
+                  alPresionar: () {
+                    _abrirPantalla(context, const CotizadorScreen());
+                  },
+                ),
+
+                const SizedBox(height: 12),
+
+                _construirBotonModulo(
+                  texto: 'GESTIÓN DE INSUMOS',
+                  icono: Icons.category_outlined,
+                  alPresionar: () {
+                    _abrirPantalla(context, const InsumosScreen());
+                  },
+                ),
+
+                const SizedBox(height: 24),
+              ],
             ),
-
-            const SizedBox(height: 16),
-
-            _construirTarjetaResumen(
-              titulo: 'Capital inicial',
-              valor: '\$1.000.000',
-              icono: Icons.savings,
-            ),
-
-            _construirTarjetaResumen(
-              titulo: 'Capital recuperado',
-              valor: '\$0',
-              icono: Icons.trending_up,
-            ),
-
-            _construirTarjetaResumen(
-              titulo: 'Ganancia empresa',
-              valor: '\$0',
-              icono: Icons.business_center,
-            ),
-
-            _construirTarjetaResumen(
-              titulo: 'Ganancia personal',
-              valor: '\$0',
-              icono: Icons.person,
-            ),
-
-            const SizedBox(height: 24),
-
-            // ------------------------------------------------
-            // MÓDULOS PRINCIPALES
-            // ------------------------------------------------
-            const Text(
-              'MÓDULOS',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 16),
-
-            _construirBotonModulo(
-              texto: 'CATÁLOGO',
-              icono: Icons.inventory_2_outlined,
-              alPresionar: () {
-                _abrirPantalla(context, const CatalogoScreen());
-              },
-            ),
-
-            const SizedBox(height: 12),
-
-            _construirBotonModulo(
-              texto: 'COTIZADOR',
-              icono: Icons.calculate_outlined,
-              alPresionar: () {
-                _abrirPantalla(context, const CotizadorScreen());
-              },
-            ),
-
-            const SizedBox(height: 12),
-
-            _construirBotonModulo(
-              texto: 'GESTIÓN DE INSUMOS',
-              icono: Icons.category_outlined,
-              alPresionar: () {
-                _abrirPantalla(context, const InsumosScreen());
-              },
-            ),
-
-            const SizedBox(height: 24),
-          ],
+          ),
         ),
       ),
     );
   }
-
   // ========================================================
   // COMPONENTES AUXILIARES DE LA INTERFAZ
   // ========================================================
