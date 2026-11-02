@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 
 // Importamos las categorías disponibles para los insumos.
 import '../data/categorias_insumos.dart';
@@ -45,6 +46,14 @@ class _InsumoFormScreenState extends State<InsumoFormScreen> {
   /// Permite validar conjuntamente todos los campos
   /// antes de construir y devolver el insumo.
   final _formKey = GlobalKey<FormState>();
+
+  // ========================================================
+  // GENERACIÓN DE IDENTIFICADORES
+  // ========================================================
+
+  /// Generador utilizado para asignar un identificador único
+  /// a cada insumo creado desde el formulario.
+  final Uuid _uuid = const Uuid();
 
   // ========================================================
   // CONTROLADORES DEL FORMULARIO
@@ -301,6 +310,10 @@ class _InsumoFormScreenState extends State<InsumoFormScreen> {
     // en edición. La pantalla anterior decidirá si debe
     // agregarlo o reemplazar otro registro.
     final Insumo insumoGuardado = Insumo(
+      // En modo edición se conserva el identificador original.
+      //
+      // En modo creación se genera un UUID nuevo.
+      id: widget.insumoInicial?.id ?? _uuid.v4(),
       nombre: nombreController.text.trim(),
       categoria: categoriaSeleccionada,
       unidadMedida: unidadMedidaSeleccionada,
@@ -308,7 +321,6 @@ class _InsumoFormScreenState extends State<InsumoFormScreen> {
       cantidadComprada: cantidadComprada,
       activo: insumoActivo,
     );
-
     // El formulario se cierra y devuelve el insumo creado
     // o modificado a InsumosScreen.
     Navigator.pop(context, insumoGuardado);

@@ -1,18 +1,19 @@
 import '../models/insumo.dart';
+import '../services/insumos_storage_service.dart';
 import 'insumos_demo.dart';
 
 // ==========================================================
 // REPOSITORIO COMPARTIDO DE INSUMOS
 // ==========================================================
 
-/// Centraliza temporalmente la lista de insumos de MAELUX.
+/// Centraliza la colección de insumos utilizada por MAELUX.
 ///
-/// Este repositorio permite que Gestión de insumos y el
-/// Cotizador trabajen con la misma colección durante la
-/// ejecución de la aplicación.
+/// El repositorio conserva una copia en memoria para que las
+/// pantallas trabajen con la misma información y utiliza
+/// [InsumosStorageService] para guardar los cambios localmente.
 ///
-/// En una etapa posterior, este repositorio se conectará
-/// con almacenamiento local o una base de datos.
+/// Durante la primera ejecución se cargan los datos demostrativos.
+/// En ejecuciones posteriores se recuperan los datos guardados.
 class InsumosRepository {
   // ========================================================
   // INSTANCIA COMPARTIDA
@@ -21,28 +22,97 @@ class InsumosRepository {
   /// Instancia única utilizada por todas las pantallas.
   static final InsumosRepository instancia = InsumosRepository._interno();
 
-  /// Constructor privado que impide crear repositorios
+  /// Constructor privado que evita crear repositorios
   /// independientes accidentalmente.
   InsumosRepository._interno();
 
   // ========================================================
-  // ALMACENAMIENTO TEMPORAL
+  // SERVICIO DE ALMACENAMIENTO
   // ========================================================
 
-  /// Lista modificable inicializada con los datos demostrativos.
+  /// Servicio responsable de guardar y recuperar los insumos.
+  final InsumosStorageService _storageService = InsumosStorageService();
+
+  // ========================================================
+  // ESTADO INTERNO
+  // ========================================================
+
+  /// Colección modificable mantenida en memoria.
+  final List<Insumo> _insumos = [];
+
+  /// Indica si el repositorio ya completó su carga inicial.
+  bool _inicializado = false;
+
+  /// Indica si el repositorio está ejecutando la inicialización.
+  Future<void>? _inicializacionEnCurso;
+
+  // ========================================================
+  // INICIALIZACIÓN
+  // ========================================================
+
+  /// Carga los insumos guardados o utiliza los datos
+  /// demostrativos durante la primera ejecución.
   ///
-  /// Los cambios permanecerán disponibles mientras la aplicación
-  /// continúe ejecutándose.
-  final List<Insumo> _insumos = List<Insumo>.from(insumosDemo);
+  /// Las llamadas adicionales esperan la misma operación
+  /// y no duplican la inicialización.
+  Future<void> inicializar() {
+    if (_inicializado) {
+      return Future<void>.value();
+    }
+
+    final Future<void>? inicializacionActual = _inicializacionEnCurso;
+
+    if (inicializacionActual != null) {
+      return inicializacionActual;
+    }
+
+    final Future<void> nuevaInicializacion = _cargarDatosIniciales();
+
+    _inicializacionEnCurso = nuevaInicializacion;
+
+    return nuevaInicializacion;
+  }
+
+  /// Ejecuta internamente la carga inicial del repositorio.
+  Future<void> _cargarDatosIniciales() async {
+    try {
+      final bool existenDatos = await _storageService.existenInsumosGuardados();
+
+      _insumos.clear();
+
+      if (existenDatos) {
+        final List<Insumo> insumosGuardados = await _storageService
+            .cargarInsumos();
+
+        _insumos.addAll(insumosGuardados);
+      } else {
+        // Los datos demostrativos se utilizan solamente
+        // durante la primera ejecución.
+        _insumos.addAll(insumosDemo);
+
+        await _guardarEstadoActual();
+      }
+
+      _inicializado = true;
+    } finally {
+      _inicializacionEnCurso = null;
+    }
+  }
+
+  // ========================================================
+  // ESTADO DEL REPOSITORIO
+  // ========================================================
+
+  /// Indica si la carga inicial ya terminó correctamente.
+  bool get estaInicializado {
+    return _inicializado;
+  }
 
   // ========================================================
   // CONSULTAS
   // ========================================================
 
-  /// Devuelve una copia de todos los insumos registrados.
-  ///
-  /// La copia evita que otras pantallas modifiquen directamente
-  /// la lista interna del repositorio.
+  /// Devuelve una copia no modificable de todos los insumos.
   List<Insumo> obtenerTodos() {
     return List<Insumo>.unmodifiable(_insumos);
   }
@@ -58,7 +128,7 @@ class InsumosRepository {
     return _insumos.length;
   }
 
-  /// Devuelve la cantidad de insumos actualmente activos.
+  /// Devuelve la cantidad de insumos activos.
   int get cantidadActivos {
     return _insumos.where((insumo) => insumo.activo).length;
   }
@@ -67,62 +137,79 @@ class InsumosRepository {
   // CREACIÓN
   // ========================================================
 
-  /// Agrega un nuevo insumo al final de la lista.
-  void agregar(Insumo insumo) {
+  /// Agrega un insumo y guarda la colección actualizada.
+  Future<void> agregar(Insumo insumo) async {
     _insumos.add(insumo);
+
+    await _guardarEstadoActual();
   }
 
   // ========================================================
   // EDICIÓN
   // ========================================================
 
-  /// Reemplaza el insumo situado en la posición indicada.
+  /// Reemplaza un insumo y guarda la colección actualizada.
   ///
-  /// Si el índice no existe, la operación no modifica la lista.
-  void actualizar({required int indice, required Insumo insumo}) {
+  /// Si el índice no existe, la operación no modifica los datos.
+  Future<void> actualizar({required int indice, required Insumo insumo}) async {
     if (!_indiceValido(indice)) {
       return;
     }
 
     _insumos[indice] = insumo;
+
+    await _guardarEstadoActual();
   }
 
   // ========================================================
   // CAMBIO DE ESTADO
   // ========================================================
 
-  /// Activa o desactiva un insumo existente.
-  ///
-  /// El registro permanece guardado aunque quede desactivado.
-  void cambiarEstado({required int indice, required bool activo}) {
+  /// Activa o desactiva un insumo y persiste el cambio.
+  Future<void> cambiarEstado({
+    required int indice,
+    required bool activo,
+  }) async {
     if (!_indiceValido(indice)) {
       return;
     }
 
     _insumos[indice] = _insumos[indice].copiarCon(activo: activo);
+
+    await _guardarEstadoActual();
   }
 
   // ========================================================
   // ELIMINACIÓN
   // ========================================================
 
-  /// Elimina el insumo situado en la posición indicada.
+  /// Elimina un insumo y guarda la colección actualizada.
   ///
-  /// Si el índice no existe, la lista permanece sin cambios.
-  void eliminar(int indice) {
+  /// Si el índice no existe, la operación no modifica los datos.
+  Future<void> eliminar(int indice) async {
     if (!_indiceValido(indice)) {
       return;
     }
 
     _insumos.removeAt(indice);
+
+    await _guardarEstadoActual();
+  }
+
+  // ========================================================
+  // PERSISTENCIA INTERNA
+  // ========================================================
+
+  /// Guarda una copia completa del estado actual.
+  Future<void> _guardarEstadoActual() async {
+    await _storageService.guardarInsumos(_insumos);
   }
 
   // ========================================================
   // VALIDACIONES INTERNAS
   // ========================================================
 
-  /// Comprueba que el índice recibido corresponda
-  /// a un elemento existente dentro de la lista.
+  /// Comprueba que el índice corresponda a un registro existente.
   bool _indiceValido(int indice) {
     return indice >= 0 && indice < _insumos.length;
   }

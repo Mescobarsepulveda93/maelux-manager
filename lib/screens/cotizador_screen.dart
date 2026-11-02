@@ -229,9 +229,9 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
     }
 
     // Se comprueba si el insumo ya fue agregado.
-    final int indiceExistente = insumosSeleccionados.indexWhere(
-      (seleccion) => identical(seleccion.insumo, insumo),
-    );
+    final int indiceExistente = insumosSeleccionados.indexWhere((seleccion) {
+      return seleccion.insumo.id == insumo.id;
+    });
 
     setState(() {
       if (indiceExistente >= 0) {
@@ -599,6 +599,97 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
   // COMPONENTES AUXILIARES DE LA INTERFAZ
   // ========================================================
 
+  // ========================================================
+  // FORMATO DE CANTIDADES E IMPORTES
+  // ========================================================
+
+  /// Normaliza pequeñas diferencias de precisión generadas
+  /// por cálculos con números decimales.
+  double _normalizarPrecision(double valor) {
+    return double.parse(valor.toStringAsFixed(6));
+  }
+
+  /// Presenta una cantidad sin decimales innecesarios.
+  ///
+  /// Ejemplos:
+  ///
+  /// `1.0` se presenta como `1`.
+  ///
+  /// `2.5` se presenta como `2,5`.
+  ///
+  /// `0.75` se presenta como `0,75`.
+  String _formatearCantidad(double cantidad) {
+    final double cantidadNormalizada = _normalizarPrecision(cantidad);
+
+    if (cantidadNormalizada == cantidadNormalizada.truncateToDouble()) {
+      return cantidadNormalizada.toStringAsFixed(0);
+    }
+
+    String texto = cantidadNormalizada.toStringAsFixed(6);
+
+    // Se eliminan los ceros innecesarios situados
+    // al final de la parte decimal.
+    texto = texto.replaceFirst(RegExp(r'0+$'), '');
+
+    // Se elimina el punto si ya no quedan decimales.
+    texto = texto.replaceFirst(RegExp(r'\.$'), '');
+
+    return texto.replaceAll('.', ',');
+  }
+
+  /// Presenta la unidad de medida en singular o plural.
+  ///
+  /// Las unidades antiguas que no aparecen en el listado
+  /// se conservan sin modificaciones.
+  String _formatearUnidad(double cantidad, String unidad) {
+    if (_normalizarPrecision(cantidad) == 1.0) {
+      return unidad;
+    }
+
+    const Map<String, String> plurales = {
+      'unidad': 'unidades',
+      'metro': 'metros',
+      'centímetro': 'centímetros',
+      'kilogramo': 'kilogramos',
+      'gramo': 'gramos',
+      'litro': 'litros',
+      'mililitro': 'mililitros',
+      'rollo': 'rollos',
+      'paquete': 'paquetes',
+      'hoja': 'hojas',
+    };
+
+    return plurales[unidad] ?? unidad;
+  }
+
+  /// Presenta un importe utilizando el formato habitual
+  /// de pesos chilenos.
+  ///
+  /// Los valores enteros se muestran sin decimales.
+  /// Los valores fraccionarios conservan dos decimales.
+  String _formatearPesos(double monto) {
+    if (!monto.isFinite) {
+      return '\$0';
+    }
+
+    final bool tieneDecimales = monto != monto.truncateToDouble();
+
+    final String texto = monto.toStringAsFixed(tieneDecimales ? 2 : 0);
+
+    final List<String> partes = texto.split('.');
+
+    // Se utilizan puntos como separadores de miles.
+    final String enteros = partes[0].replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (coincidencia) => '${coincidencia[1]}.',
+    );
+
+    // La parte decimal se separa mediante una coma.
+    final String decimales = partes.length > 1 ? ',${partes[1]}' : '';
+
+    return '\$$enteros$decimales';
+  }
+
   /// Construye un dato compacto para el resumen comercial.
   ///
   /// Este componente evita repetir estilos y mantiene una
@@ -675,7 +766,7 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
                   value: insumo,
                   child: Text(
                     '${insumo.nombre} - '
-                    '\$${insumo.costoUnitario.toStringAsFixed(2)} '
+                    '${_formatearPesos(insumo.costoUnitario)} '
                     'por ${insumo.unidadMedida}',
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -742,15 +833,15 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
                 child: ListTile(
                   title: Text(seleccion.insumo.nombre),
                   subtitle: Text(
-                    '${seleccion.cantidadUtilizada.toStringAsFixed(2)} '
-                    '${seleccion.insumo.unidadMedida} × '
-                    '\$${seleccion.insumo.costoUnitario.toStringAsFixed(2)}',
+                    '${_formatearCantidad(seleccion.cantidadUtilizada)} '
+                    '${_formatearUnidad(seleccion.cantidadUtilizada, seleccion.insumo.unidadMedida)} × '
+                    '${_formatearPesos(seleccion.insumo.costoUnitario)}',
                   ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        '\$${seleccion.costoTotal.toStringAsFixed(2)}',
+                        _formatearPesos(seleccion.costoTotal),
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
 
@@ -782,7 +873,7 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
                 ),
 
                 Text(
-                  '\$${costoInsumosPorUnidad.toStringAsFixed(2)}',
+                  _formatearPesos(costoInsumosPorUnidad),
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,

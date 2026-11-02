@@ -62,9 +62,13 @@ class _InsumosScreenState extends State<InsumosScreen> {
       return;
     }
 
-    setState(() {
-      repositorio.agregar(nuevoInsumo);
-    });
+    await repositorio.agregar(nuevoInsumo);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -104,9 +108,13 @@ class _InsumosScreenState extends State<InsumosScreen> {
       return;
     }
 
-    setState(() {
-      repositorio.actualizar(indice: indice, insumo: insumoEditado);
-    });
+    await repositorio.actualizar(indice: indice, insumo: insumoEditado);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -126,10 +134,16 @@ class _InsumosScreenState extends State<InsumosScreen> {
   ///
   /// Un insumo desactivado continúa registrado, pero no
   /// será entregado por la consulta de insumos activos.
-  void _cambiarEstadoInsumo({required int indice, required bool activo}) {
-    setState(() {
-      repositorio.cambiarEstado(indice: indice, activo: activo);
-    });
+  Future<void> _cambiarEstadoInsumo({
+    required int indice,
+    required bool activo,
+  }) async {
+    await repositorio.cambiarEstado(indice: indice, activo: activo);
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
   }
 
   // ========================================================
@@ -181,9 +195,13 @@ class _InsumosScreenState extends State<InsumosScreen> {
       return;
     }
 
-    setState(() {
-      repositorio.eliminar(indice);
-    });
+    await repositorio.eliminar(indice);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Insumo "${insumo.nombre}" eliminado.')),

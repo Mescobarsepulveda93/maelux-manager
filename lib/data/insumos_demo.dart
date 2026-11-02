@@ -11,6 +11,7 @@ import '../models/insumo.dart';
 /// almacenamiento local o de una base de datos.
 const List<Insumo> insumosDemo = [
   Insumo(
+    id: 'insumo-bolsa-transparente-pequena',
     nombre: 'Bolsa transparente pequeña',
     categoria: 'Packaging',
     unidadMedida: 'unidad',
@@ -18,6 +19,7 @@ const List<Insumo> insumosDemo = [
     cantidadComprada: 100,
   ),
   Insumo(
+    id: 'insumo-caja-carton-pequena',
     nombre: 'Caja de cartón pequeña',
     categoria: 'Packaging',
     unidadMedida: 'unidad',
@@ -25,6 +27,7 @@ const List<Insumo> insumosDemo = [
     cantidadComprada: 50,
   ),
   Insumo(
+    id: 'insumo-sticker-maelux',
     nombre: 'Sticker MAELUX',
     categoria: 'Stickers y etiquetas',
     unidadMedida: 'unidad',
@@ -32,6 +35,7 @@ const List<Insumo> insumosDemo = [
     cantidadComprada: 200,
   ),
   Insumo(
+    id: 'insumo-argolla-metalica',
     nombre: 'Argolla metálica',
     categoria: 'Argollas',
     unidadMedida: 'unidad',
@@ -39,6 +43,7 @@ const List<Insumo> insumosDemo = [
     cantidadComprada: 100,
   ),
   Insumo(
+    id: 'insumo-iman-circular',
     nombre: 'Imán circular',
     categoria: 'Imanes',
     unidadMedida: 'unidad',
@@ -46,6 +51,7 @@ const List<Insumo> insumosDemo = [
     cantidadComprada: 100,
   ),
   Insumo(
+    id: 'insumo-pegamento-instantaneo',
     nombre: 'Pegamento instantáneo',
     categoria: 'Adhesivos',
     unidadMedida: 'mililitro',
