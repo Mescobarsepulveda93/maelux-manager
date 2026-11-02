@@ -59,17 +59,6 @@ class CostosService {
   // COSTOS OPERACIONALES POR UNIDAD
   // ========================================================
 
-  /// Devuelve el costo unitario utilizado para packaging.
-  ///
-  /// Incluye provisionalmente bolsa, etiqueta u otros elementos
-  /// básicos de presentación del producto.
-
-  static double calcularPackaging() {
-    const double costoPackaging = 50;
-
-    return costoPackaging;
-  }
-
   /// Calcula el gasto financiero asignado a cada unidad.
   ///
   /// [gastosMensuales] representa el total mensual asociado

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../data/insumos_repository.dart';
 import '../data/materiales_demo.dart';
+import '../models/insumo.dart';
+import '../models/insumo_cotizacion.dart';
 import '../models/material_3d.dart';
 import '../services/costos_service.dart';
 
@@ -31,6 +34,10 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
   // Cada cotización comienza con una unidad por defecto.
 
   final cantidadController = TextEditingController(text: '1');
+
+  // Cantidad del insumo que se utilizará para fabricar
+  // o presentar una unidad del producto cotizado.
+  final cantidadInsumoController = TextEditingController(text: '1');
 
   // Valor de la UF utilizado para convertir a pesos
   // los cargos fijos de las tarifas por tarjeta.
@@ -79,6 +86,36 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
   final cargoFijoTarjetaUfController = TextEditingController(text: '0.0018');
 
   // ========================================================
+  // REPOSITORIO DE INSUMOS
+  // ========================================================
+
+  /// Repositorio compartido utilizado para consultar los
+  /// insumos activos registrados en MAELUX.
+  final InsumosRepository insumosRepository = InsumosRepository.instancia;
+
+  // ========================================================
+  // INSUMOS UTILIZADOS EN LA COTIZACIÓN
+  // ========================================================
+
+  /// Insumos seleccionados para fabricar o presentar
+  /// una unidad del producto cotizado.
+  ///
+  /// Cada registro conserva el insumo y la cantidad utilizada.
+  final List<InsumoCotizacion> insumosSeleccionados = [];
+
+  // Insumo activo seleccionado en el desplegable.
+  //
+  // El valor se mantiene separado de insumosSeleccionados
+  // hasta que el usuario confirma su incorporación.
+  Insumo? insumoPendiente;
+
+  /// Devuelve únicamente los insumos que están disponibles
+  /// actualmente para utilizar en el cotizador.
+  List<Insumo> get insumosActivos {
+    return insumosRepository.obtenerActivos();
+  }
+
+  // ========================================================
   // OPCIONES SELECCIONABLES
   // ========================================================
 
@@ -115,7 +152,7 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
   // RESULTADOS OPERACIONALES
   // ========================================================
 
-  double costoPackaging = 0;
+  double costoInsumos = 0;
   double costoGastosBancarios = 0;
   double subtotalOperacional = 0;
   // ========================================================
@@ -153,6 +190,93 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
   // Total preliminar del pedido antes de IVA y ajustes finales.
 
   double precioTotalNeto = 0;
+
+  // ========================================================
+  // GESTIÓN DE INSUMOS DE LA COTIZACIÓN
+  // ========================================================
+
+  /// Agrega el insumo seleccionado a la cotización.
+  ///
+  /// La cantidad representa el consumo necesario para fabricar
+  /// o presentar una unidad del producto cotizado.
+  void _agregarInsumoCotizacion() {
+    final Insumo? insumo = insumoPendiente;
+
+    final double cantidadUtilizada =
+        double.tryParse(cantidadInsumoController.text.replaceAll(',', '.')) ??
+        0;
+
+    // Se requiere seleccionar un insumo activo.
+    if (insumo == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Selecciona un insumo antes de agregarlo.'),
+        ),
+      );
+
+      return;
+    }
+
+    // La cantidad utilizada debe ser mayor que cero.
+    if (cantidadUtilizada <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Introduce una cantidad de insumo mayor que cero.'),
+        ),
+      );
+
+      return;
+    }
+
+    // Se comprueba si el insumo ya fue agregado.
+    final int indiceExistente = insumosSeleccionados.indexWhere(
+      (seleccion) => identical(seleccion.insumo, insumo),
+    );
+
+    setState(() {
+      if (indiceExistente >= 0) {
+        // Si ya existe, se reemplaza la cantidad anterior.
+        insumosSeleccionados[indiceExistente] =
+            insumosSeleccionados[indiceExistente].copiarCon(
+              cantidadUtilizada: cantidadUtilizada,
+            );
+      } else {
+        // Si todavía no existe, se incorpora como una
+        // nueva selección de la cotización.
+        insumosSeleccionados.add(
+          InsumoCotizacion(
+            insumo: insumo,
+            cantidadUtilizada: cantidadUtilizada,
+          ),
+        );
+      }
+
+      // Se limpia la selección temporal para permitir
+      // añadir otro insumo.
+      insumoPendiente = null;
+      cantidadInsumoController.text = '1';
+    });
+  }
+
+  /// Elimina un insumo de la cotización sin borrarlo
+  /// del repositorio general de MAELUX.
+  void _eliminarInsumoCotizacion(int indice) {
+    if (indice < 0 || indice >= insumosSeleccionados.length) {
+      return;
+    }
+
+    setState(() {
+      insumosSeleccionados.removeAt(indice);
+    });
+  }
+
+  /// Suma el coste de todos los insumos seleccionados
+  /// para una unidad del producto cotizado.
+  double get costoInsumosPorUnidad {
+    return insumosSeleccionados.fold(0, (total, seleccion) {
+      return total + seleccion.costoTotal;
+    });
+  }
 
   // ========================================================
   // CÁLCULO DE LA COTIZACIÓN
@@ -374,14 +498,18 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
     // COSTOS OPERACIONALES POR UNIDAD
     // ------------------------------------------------------
 
-    final double packaging = CostosService.calcularPackaging();
+    // El coste de los insumos corresponde a la suma de los
+    // elementos seleccionados para una unidad del producto.
+    final double insumos = costoInsumosPorUnidad;
 
     final double gastosBancarios = CostosService.calcularGastosBancarios(
       gastosMensuales: gastosFinancierosMensuales,
       unidadesMensualesEstimadas: unidadesMensualesEstimadas,
     );
 
-    final double operacional = packaging + gastosBancarios;
+    // El subtotal operacional por unidad se forma con los
+    // insumos seleccionados y los gastos financieros prorrateados.
+    final double operacional = insumos + gastosBancarios;
 
     // ------------------------------------------------------
     // COSTO BASE Y PRECIO SUGERIDO
@@ -448,7 +576,7 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
       costoMargenError = margenError;
       subtotalFabricacion = fabricacion;
 
-      costoPackaging = packaging;
+      costoInsumos = insumos;
       costoGastosBancarios = gastosBancarios;
       subtotalOperacional = operacional;
 
@@ -492,6 +620,188 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
           style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
         ),
       ],
+    );
+  }
+
+  /// Construye la sección utilizada para seleccionar los insumos
+  /// aplicados a una unidad del producto cotizado.
+  ///
+  /// Los insumos disponibles proceden del repositorio compartido.
+  /// Los insumos desactivados no aparecen en el selector.
+  Widget _construirInsumosProducto() {
+    final List<Insumo> disponibles = insumosActivos;
+
+    return Card(
+      child: ExpansionTile(
+        initiallyExpanded: true,
+        title: const Text(
+          'Insumos del producto',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(
+          insumosSeleccionados.isEmpty
+              ? 'No hay insumos seleccionados'
+              : '${insumosSeleccionados.length} '
+                    'insumo(s) seleccionado(s)',
+        ),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: [
+          const Divider(),
+
+          const SizedBox(height: 8),
+
+          // --------------------------------------------------
+          // SELECCIÓN DEL INSUMO
+          // --------------------------------------------------
+          if (disponibles.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Text(
+                'No hay insumos activos disponibles. '
+                'Activa o registra un insumo desde Gestión de insumos.',
+                textAlign: TextAlign.center,
+              ),
+            )
+          else ...[
+            DropdownButtonFormField<Insumo>(
+              initialValue: insumoPendiente,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Insumo disponible',
+                border: OutlineInputBorder(),
+              ),
+              items: disponibles.map((insumo) {
+                return DropdownMenuItem<Insumo>(
+                  value: insumo,
+                  child: Text(
+                    '${insumo.nombre} - '
+                    '\$${insumo.costoUnitario.toStringAsFixed(2)} '
+                    'por ${insumo.unidadMedida}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                );
+              }).toList(),
+              onChanged: (insumo) {
+                setState(() {
+                  insumoPendiente = insumo;
+                });
+              },
+            ),
+
+            const SizedBox(height: 16),
+
+            // --------------------------------------------------
+            // CANTIDAD UTILIZADA POR PRODUCTO
+            // --------------------------------------------------
+            TextField(
+              controller: cantidadInsumoController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(
+                labelText: 'Cantidad utilizada por producto',
+                suffixText: insumoPendiente?.unidadMedida ?? 'cantidad',
+                helperText:
+                    'Indica cuánto insumo utiliza una unidad del producto.',
+                border: const OutlineInputBorder(),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _agregarInsumoCotizacion,
+                icon: const Icon(Icons.add),
+                label: const Text('AGREGAR INSUMO'),
+              ),
+            ),
+          ],
+
+          // --------------------------------------------------
+          // INSUMOS SELECCIONADOS
+          // --------------------------------------------------
+          if (insumosSeleccionados.isNotEmpty) ...[
+            const Divider(height: 32),
+
+            const Text(
+              'INSUMOS SELECCIONADOS',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+
+            const SizedBox(height: 12),
+
+            ...insumosSeleccionados.asMap().entries.map((entrada) {
+              final int indice = entrada.key;
+              final InsumoCotizacion seleccion = entrada.value;
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  title: Text(seleccion.insumo.nombre),
+                  subtitle: Text(
+                    '${seleccion.cantidadUtilizada.toStringAsFixed(2)} '
+                    '${seleccion.insumo.unidadMedida} × '
+                    '\$${seleccion.insumo.costoUnitario.toStringAsFixed(2)}',
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '\$${seleccion.costoTotal.toStringAsFixed(2)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+
+                      IconButton(
+                        onPressed: () {
+                          _eliminarInsumoCotizacion(indice);
+                        },
+                        tooltip: 'Quitar de la cotización',
+                        icon: Icon(
+                          Icons.close,
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+
+            const Divider(height: 24),
+
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Costo total de insumos por unidad',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+
+                Text(
+                  '\$${costoInsumosPorUnidad.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ],
+
+          const SizedBox(height: 8),
+
+          const Text(
+            'Los insumos seleccionados se incorporan al cálculo '
+            'cuando se pulsa el botón Calcular.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontStyle: FontStyle.italic),
+          ),
+        ],
+      ),
     );
   }
 
@@ -572,8 +882,8 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
           const SizedBox(height: 8),
 
           Text(
-            'Packaging: '
-            '\$${costoPackaging.toStringAsFixed(0)}',
+            'Insumos seleccionados: '
+            '\$${costoInsumos.toStringAsFixed(0)}',
             textAlign: TextAlign.center,
           ),
 
@@ -934,6 +1244,7 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
     horasController.dispose();
     minutosController.dispose();
     cantidadController.dispose();
+    cantidadInsumoController.dispose();
     valorUfController.dispose();
 
     // Controladores de supuestos productivos.
@@ -1075,6 +1386,13 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
                     border: OutlineInputBorder(),
                   ),
                 ),
+
+                const SizedBox(height: 24),
+
+                // ------------------------------------------------
+                // INSUMOS DEL PRODUCTO
+                // ------------------------------------------------
+                _construirInsumosProducto(),
 
                 const SizedBox(height: 24),
 
