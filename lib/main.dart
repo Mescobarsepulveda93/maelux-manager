@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'data/configuracion_cotizador_repository.dart';
 import 'data/insumos_repository.dart';
 import 'screens/home_screen.dart';
 import 'theme/app_theme.dart';
@@ -17,13 +18,12 @@ Future<void> main() async {
   // de plataforma antes de utilizar shared_preferences.
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Espera la carga de los insumos antes de mostrar la aplicación.
-  //
-  // Durante la primera ejecución, el repositorio utiliza
-  // los registros demostrativos y los guarda localmente.
-  //
-  // En ejecuciones posteriores, recupera los datos persistidos.
-  await InsumosRepository.instancia.inicializar();
+  // Se cargan simultáneamente los datos que necesita
+  // la aplicación antes de construir la interfaz.
+  await Future.wait([
+    InsumosRepository.instancia.inicializar(),
+    ConfiguracionCotizadorRepository.instancia.inicializar(),
+  ]);
 
   runApp(const MaeluxApp());
 }

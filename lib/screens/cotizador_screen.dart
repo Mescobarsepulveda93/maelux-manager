@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../data/configuracion_cotizador_repository.dart';
+import '../models/configuracion_cotizador.dart';
 import '../data/insumos_repository.dart';
 import '../data/materiales_demo.dart';
 import '../models/insumo.dart';
@@ -84,6 +86,15 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
   // Componente fijo contractual de la comisión,
   // expresado en unidades de fomento.
   final cargoFijoTarjetaUfController = TextEditingController(text: '0.0018');
+
+  // ========================================================
+  // REPOSITORIO DE CONFIGURACIÓN
+  // ========================================================
+
+  /// Repositorio compartido utilizado para consultar y guardar
+  /// los supuestos administrativos del cotizador.
+  final ConfiguracionCotizadorRepository configuracionRepository =
+      ConfiguracionCotizadorRepository.instancia;
 
   // ========================================================
   // REPOSITORIO DE INSUMOS
@@ -190,6 +201,186 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
   // Total preliminar del pedido antes de IVA y ajustes finales.
 
   double precioTotalNeto = 0;
+
+  // ========================================================
+  // INICIALIZACIÓN DEL COTIZADOR
+  // ========================================================
+
+  @override
+  void initState() {
+    super.initState();
+
+    _cargarConfiguracionGuardada();
+  }
+  // ========================================================
+  // GUARDADO DE LA CONFIGURACIÓN
+  // ========================================================
+
+  /// Valida y guarda los supuestos administrativos
+  /// introducidos en el cotizador.
+  Future<void> _guardarConfiguracionCotizador() async {
+    final double costoKwh =
+        double.tryParse(costoKwhController.text.replaceAll(',', '.')) ?? 0;
+
+    final double consumoImpresoraKwh =
+        double.tryParse(
+          consumoImpresoraKwhController.text.replaceAll(',', '.'),
+        ) ??
+        0;
+
+    final double desgasteHora =
+        double.tryParse(desgasteHoraController.text.replaceAll(',', '.')) ?? -1;
+
+    final double margenErrorPorcentaje =
+        double.tryParse(margenErrorController.text.replaceAll(',', '.')) ?? -1;
+
+    final double gastosBancariosMensuales =
+        double.tryParse(
+          gastosFinancierosMensualesController.text.replaceAll(',', '.'),
+        ) ??
+        -1;
+
+    final int unidadesMensualesEstimadas =
+        int.tryParse(unidadesMensualesEstimadasController.text) ?? 0;
+
+    final double ivaProductoPorcentaje =
+        double.tryParse(ivaProductoController.text.replaceAll(',', '.')) ?? -1;
+
+    final double comisionTarjetaPorcentaje =
+        double.tryParse(comisionTarjetaController.text.replaceAll(',', '.')) ??
+        -1;
+
+    final double cargoFijoTarjetaUf =
+        double.tryParse(
+          cargoFijoTarjetaUfController.text.replaceAll(',', '.'),
+        ) ??
+        -1;
+
+    final double valorUf =
+        double.tryParse(valorUfController.text.replaceAll(',', '.')) ?? 0;
+
+    // Los valores productivos obligatorios deben ser positivos.
+    if (costoKwh <= 0 ||
+        consumoImpresoraKwh <= 0 ||
+        desgasteHora < 0 ||
+        margenErrorPorcentaje < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Revisa los supuestos de producción antes de guardar.'),
+        ),
+      );
+
+      return;
+    }
+
+    // Los gastos pueden ser cero, pero la cantidad mensual
+    // estimada siempre debe ser mayor que cero.
+    if (gastosBancariosMensuales < 0 || unidadesMensualesEstimadas <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Revisa los gastos bancarios y las unidades mensuales.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    // Los porcentajes deben mantenerse dentro de un rango válido.
+    if (ivaProductoPorcentaje < 0 ||
+        ivaProductoPorcentaje >= 100 ||
+        comisionTarjetaPorcentaje < 0 ||
+        comisionTarjetaPorcentaje >= 100 ||
+        cargoFijoTarjetaUf < 0 ||
+        valorUf < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Revisa los valores tributarios, de tarjeta y UF.'),
+        ),
+      );
+
+      return;
+    }
+
+    final ConfiguracionCotizador nuevaConfiguracion = ConfiguracionCotizador(
+      costoKwh: costoKwh,
+      consumoImpresoraKwh: consumoImpresoraKwh,
+      desgasteHora: desgasteHora,
+      margenErrorPorcentaje: margenErrorPorcentaje,
+      gastosBancariosMensuales: gastosBancariosMensuales,
+      unidadesMensualesEstimadas: unidadesMensualesEstimadas,
+      ivaProductoPorcentaje: ivaProductoPorcentaje,
+      comisionTarjetaPorcentaje: comisionTarjetaPorcentaje,
+      cargoFijoTarjetaUf: cargoFijoTarjetaUf,
+      valorUf: valorUf,
+    );
+
+    await configuracionRepository.actualizar(nuevaConfiguracion);
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Configuración del cotizador guardada correctamente.'),
+      ),
+    );
+  }
+
+  /// Carga en los controladores los valores recuperados
+  /// desde el almacenamiento local.
+  void _cargarConfiguracionGuardada() {
+    final ConfiguracionCotizador configuracion =
+        configuracionRepository.configuracion;
+
+    costoKwhController.text = _numeroComoTexto(configuracion.costoKwh);
+
+    consumoImpresoraKwhController.text = _numeroComoTexto(
+      configuracion.consumoImpresoraKwh,
+    );
+
+    desgasteHoraController.text = _numeroComoTexto(configuracion.desgasteHora);
+
+    margenErrorController.text = _numeroComoTexto(
+      configuracion.margenErrorPorcentaje,
+    );
+
+    gastosFinancierosMensualesController.text = _numeroComoTexto(
+      configuracion.gastosBancariosMensuales,
+    );
+
+    unidadesMensualesEstimadasController.text = configuracion
+        .unidadesMensualesEstimadas
+        .toString();
+
+    ivaProductoController.text = _numeroComoTexto(
+      configuracion.ivaProductoPorcentaje,
+    );
+
+    comisionTarjetaController.text = _numeroComoTexto(
+      configuracion.comisionTarjetaPorcentaje,
+    );
+
+    cargoFijoTarjetaUfController.text = _numeroComoTexto(
+      configuracion.cargoFijoTarjetaUf,
+    );
+
+    valorUfController.text = configuracion.valorUf > 0
+        ? _numeroComoTexto(configuracion.valorUf)
+        : '';
+  }
+
+  /// Convierte un número en texto sin añadir decimales
+  /// innecesarios a los valores enteros.
+  String _numeroComoTexto(double valor) {
+    if (valor == valor.truncateToDouble()) {
+      return valor.toStringAsFixed(0);
+    }
+
+    return valor.toString();
+  }
 
   // ========================================================
   // GESTIÓN DE INSUMOS DE LA COTIZACIÓN
@@ -1317,6 +1508,16 @@ class _CotizadorScreenState extends State<CotizadorScreen> {
             'al realizar una nueva cotización.',
             textAlign: TextAlign.center,
             style: TextStyle(fontStyle: FontStyle.italic),
+          ),
+          const SizedBox(height: 16),
+
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _guardarConfiguracionCotizador,
+              icon: const Icon(Icons.save_outlined),
+              label: const Text('GUARDAR CONFIGURACIÓN'),
+            ),
           ),
         ],
       ),
