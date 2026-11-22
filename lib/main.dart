@@ -1,8 +1,10 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'data/configuracion_cotizador_repository.dart';
 import 'data/insumos_repository.dart';
 import 'data/productos_repository.dart';
+import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'theme/app_theme.dart';
 
@@ -15,12 +17,16 @@ import 'theme/app_theme.dart';
 /// Antes de construir la interfaz, inicializa el repositorio
 /// para recuperar los insumos almacenados localmente.
 Future<void> main() async {
-  // Inicializa la comunicación entre Flutter y los complementos
-  // de plataforma antes de utilizar shared_preferences.
+  // Inicializa la comunicación entre Flutter y las
+  // plataformas antes de utilizar complementos externos.
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Se cargan simultáneamente los repositorios necesarios
-  // antes de construir las pantallas de la aplicación.
+  // Conecta MAELUX con la aplicación Firebase correspondiente
+  // a la plataforma actual, Web o Android.
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Mientras preparamos la migración a la nube, se mantienen
+  // activos los repositorios locales existentes.
   await Future.wait([
     InsumosRepository.instancia.inicializar(),
     ConfiguracionCotizadorRepository.instancia.inicializar(),

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "197548688317",
+    "project_id": "maelux-beta",
+    "storage_bucket": "maelux-beta.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:197548688317:android:162310a147fda4e6df48d4",
+        "android_client_info": {
+          "package_name": "com.example.maelux_manager"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBhXfz2Qva8yzNpk8xmpvviq4o_kmwcR60"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
