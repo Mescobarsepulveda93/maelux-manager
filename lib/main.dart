@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'data/configuracion_cotizador_repository.dart';
 import 'data/insumos_repository.dart';
+import 'data/productos_repository.dart';
 import 'screens/home_screen.dart';
 import 'theme/app_theme.dart';
 
@@ -18,11 +19,12 @@ Future<void> main() async {
   // de plataforma antes de utilizar shared_preferences.
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Se cargan simultáneamente los datos que necesita
-  // la aplicación antes de construir la interfaz.
+  // Se cargan simultáneamente los repositorios necesarios
+  // antes de construir las pantallas de la aplicación.
   await Future.wait([
     InsumosRepository.instancia.inicializar(),
     ConfiguracionCotizadorRepository.instancia.inicializar(),
+    ProductosRepository.instancia.inicializar(),
   ]);
 
   runApp(const MaeluxApp());

@@ -2,7 +2,8 @@ import '../models/producto.dart';
 
 final List<Producto> productosDemo = [
   Producto(
-    nombre: "Llavero Navidad",
+    id: 'producto-llavero-navidad',
+    nombre: 'Llavero Navidad',
     categoria: "Navidad",
     material: "PLA",
     gramos: 12,
@@ -13,7 +14,8 @@ final List<Producto> productosDemo = [
   ),
 
   Producto(
-    nombre: "Nombre 3D",
+    id: 'producto-nombre-3d',
+    nombre: 'Nombre 3D',
     categoria: "Personalizados",
     material: "PLA",
     gramos: 50,
