@@ -7,6 +7,7 @@ import '../screens/login_screen.dart';
 import '../services/auth_service.dart';
 import '../services/perfil_usuario_service.dart';
 import '../data/insumos_repository.dart';
+import '../data/productos_repository.dart';
 
 // ==========================================================
 // CONTROL DE ACCESO DE MAELUX
@@ -210,7 +211,7 @@ class _PerfilGateState extends State<_PerfilGate> {
         // ACCESO AUTORIZADO
         // --------------------------------------------------
 
-        return _InsumosCloudGate(perfil: perfil);
+        return _DatosCloudGate(perfil: perfil);
       },
     );
   }
@@ -222,23 +223,26 @@ class _PerfilGateState extends State<_PerfilGate> {
 
 /// Conecta los repositorios compartidos únicamente después
 /// de validar la identidad, el estado y el rol del usuario.
-class _InsumosCloudGate extends StatefulWidget {
+class _DatosCloudGate extends StatefulWidget {
   final PerfilUsuario perfil;
 
-  const _InsumosCloudGate({required this.perfil});
+  const _DatosCloudGate({required this.perfil});
 
   @override
-  State<_InsumosCloudGate> createState() => _InsumosCloudGateState();
+  State<_DatosCloudGate> createState() => _DatosCloudGateState();
 }
 
-class _InsumosCloudGateState extends State<_InsumosCloudGate> {
+class _DatosCloudGateState extends State<_DatosCloudGate> {
   late Future<void> _conexionFuture;
 
   @override
   void initState() {
     super.initState();
 
-    _conexionFuture = InsumosRepository.instancia.conectarConNube();
+    _conexionFuture = Future.wait([
+      InsumosRepository.instancia.conectarConNube(),
+      ProductosRepository.instancia.conectarConNube(),
+    ]);
   }
 
   /// Reintenta la conexión con Firestore.
@@ -254,7 +258,7 @@ class _InsumosCloudGateState extends State<_InsumosCloudGate> {
       future: _conexionFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const _AuthLoadingScreen(mensaje: 'Sincronizando insumos...');
+          return const _AuthLoadingScreen(mensaje: 'Sincronizando datos...');
         }
 
         if (snapshot.hasError) {

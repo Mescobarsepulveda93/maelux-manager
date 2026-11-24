@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import '../data/insumos_repository.dart';
+import '../data/productos_repository.dart';
 
 // ==========================================================
 // SERVICIO DE AUTENTICACIÓN DE MAELUX
@@ -97,6 +98,7 @@ class AuthService {
     try {
       // Detiene primero las escuchas privadas de Firestore.
       await InsumosRepository.instancia.desconectarDeNube();
+      await ProductosRepository.instancia.desconectarDeNube();
 
       // Después elimina la sesión de Firebase Authentication.
       await _firebaseAuth.signOut();
