@@ -6,6 +6,7 @@ import '../screens/home_screen.dart';
 import '../screens/login_screen.dart';
 import '../services/auth_service.dart';
 import '../services/perfil_usuario_service.dart';
+import '../data/insumos_repository.dart';
 
 // ==========================================================
 // CONTROL DE ACCESO DE MAELUX
@@ -208,6 +209,57 @@ class _PerfilGateState extends State<_PerfilGate> {
         // --------------------------------------------------
         // ACCESO AUTORIZADO
         // --------------------------------------------------
+
+        return _InsumosCloudGate(perfil: perfil);
+      },
+    );
+  }
+}
+
+// ==========================================================
+// CONEXIÓN DE DATOS COMPARTIDOS
+// ==========================================================
+
+/// Conecta los repositorios compartidos únicamente después
+/// de validar la identidad, el estado y el rol del usuario.
+class _InsumosCloudGate extends StatefulWidget {
+  final PerfilUsuario perfil;
+
+  const _InsumosCloudGate({required this.perfil});
+
+  @override
+  State<_InsumosCloudGate> createState() => _InsumosCloudGateState();
+}
+
+class _InsumosCloudGateState extends State<_InsumosCloudGate> {
+  late Future<void> _conexionFuture;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _conexionFuture = InsumosRepository.instancia.conectarConNube();
+  }
+
+  /// Reintenta la conexión con Firestore.
+  void _reintentar() {
+    setState(() {
+      _conexionFuture = InsumosRepository.instancia.conectarConNube();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<void>(
+      future: _conexionFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _AuthLoadingScreen(mensaje: 'Sincronizando insumos...');
+        }
+
+        if (snapshot.hasError) {
+          return _PerfilErrorScreen(alReintentar: _reintentar);
+        }
 
         return const HomeScreen();
       },

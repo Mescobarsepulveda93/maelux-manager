@@ -1,4 +1,9 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+
 import '../models/insumo.dart';
+import '../services/insumos_firestore_service.dart';
 import '../services/insumos_storage_service.dart';
 import 'insumos_demo.dart';
 
@@ -6,15 +11,17 @@ import 'insumos_demo.dart';
 // REPOSITORIO COMPARTIDO DE INSUMOS
 // ==========================================================
 
-/// Centraliza la colección de insumos utilizada por MAELUX.
+/// Centraliza los insumos utilizados por MAELUX.
 ///
-/// El repositorio conserva una copia en memoria para que las
-/// pantallas trabajen con la misma información y utiliza
-/// [InsumosStorageService] para guardar los cambios localmente.
+/// Mantiene:
 ///
-/// Durante la primera ejecución se cargan los datos demostrativos.
-/// En ejecuciones posteriores se recuperan los datos guardados.
-class InsumosRepository {
+/// - Una colección compartida en Cloud Firestore.
+/// - Una copia en memoria para la interfaz.
+/// - Un respaldo local mediante SharedPreferences.
+///
+/// La conexión con Firestore se realiza únicamente después
+/// de validar la sesión y el perfil administrativo.
+class InsumosRepository extends ChangeNotifier {
   // ========================================================
   // INSTANCIA COMPARTIDA
   // ========================================================
@@ -27,11 +34,15 @@ class InsumosRepository {
   InsumosRepository._interno();
 
   // ========================================================
-  // SERVICIO DE ALMACENAMIENTO
+  // SERVICIOS DE PERSISTENCIA
   // ========================================================
 
-  /// Servicio responsable de guardar y recuperar los insumos.
+  /// Almacenamiento local utilizado como respaldo.
   final InsumosStorageService _storageService = InsumosStorageService();
+
+  /// Servicio utilizado para sincronizar Cloud Firestore.
+  final InsumosFirestoreService _firestoreService =
+      InsumosFirestoreService.instancia;
 
   // ========================================================
   // ESTADO INTERNO
@@ -40,21 +51,29 @@ class InsumosRepository {
   /// Colección modificable mantenida en memoria.
   final List<Insumo> _insumos = [];
 
-  /// Indica si el repositorio ya completó su carga inicial.
+  /// Indica si la carga local inicial ya terminó.
   bool _inicializado = false;
 
-  /// Indica si el repositorio está ejecutando la inicialización.
+  /// Inicialización local actualmente en curso.
   Future<void>? _inicializacionEnCurso;
 
+  /// Indica si el repositorio está conectado a Firestore.
+  bool _nubeConectada = false;
+
+  /// Conexión con Firestore actualmente en curso.
+  Future<void>? _conexionNubeEnCurso;
+
+  /// Suscripción utilizada para recibir cambios remotos.
+  StreamSubscription<List<Insumo>>? _suscripcionRemota;
+
   // ========================================================
-  // INICIALIZACIÓN
+  // INICIALIZACIÓN LOCAL
   // ========================================================
 
-  /// Carga los insumos guardados o utiliza los datos
-  /// demostrativos durante la primera ejecución.
+  /// Carga primero el respaldo local.
   ///
-  /// Las llamadas adicionales esperan la misma operación
-  /// y no duplican la inicialización.
+  /// Este método no consulta Firestore porque se ejecuta
+  /// antes de que Authentication restaure la sesión.
   Future<void> inicializar() {
     if (_inicializado) {
       return Future<void>.value();
@@ -66,15 +85,16 @@ class InsumosRepository {
       return inicializacionActual;
     }
 
-    final Future<void> nuevaInicializacion = _cargarDatosIniciales();
+    final Future<void> nuevaInicializacion = _cargarDatosLocales();
 
     _inicializacionEnCurso = nuevaInicializacion;
 
     return nuevaInicializacion;
   }
 
-  /// Ejecuta internamente la carga inicial del repositorio.
-  Future<void> _cargarDatosIniciales() async {
+  /// Recupera los insumos locales o utiliza los datos
+  /// demostrativos durante la primera ejecución.
+  Future<void> _cargarDatosLocales() async {
     try {
       final bool existenDatos = await _storageService.existenInsumosGuardados();
 
@@ -86,11 +106,9 @@ class InsumosRepository {
 
         _insumos.addAll(insumosGuardados);
       } else {
-        // Los datos demostrativos se utilizan solamente
-        // durante la primera ejecución.
         _insumos.addAll(insumosDemo);
 
-        await _guardarEstadoActual();
+        await _guardarRespaldoLocal();
       }
 
       _inicializado = true;
@@ -100,12 +118,96 @@ class InsumosRepository {
   }
 
   // ========================================================
+  // CONEXIÓN CON FIRESTORE
+  // ========================================================
+
+  /// Conecta el repositorio con la colección compartida
+  /// después de validar la autorización administrativa.
+  ///
+  /// Si Firestore está vacío, migra los datos locales.
+  /// Si Firestore ya contiene datos, estos tienen prioridad.
+  Future<void> conectarConNube() {
+    if (_nubeConectada) {
+      return Future<void>.value();
+    }
+
+    final Future<void>? conexionActual = _conexionNubeEnCurso;
+
+    if (conexionActual != null) {
+      return conexionActual;
+    }
+
+    final Future<void> nuevaConexion = _conectarConNubeInternamente();
+
+    _conexionNubeEnCurso = nuevaConexion;
+
+    return nuevaConexion;
+  }
+
+  /// Ejecuta la conexión y la migración inicial.
+  Future<void> _conectarConNubeInternamente() async {
+    try {
+      if (!_inicializado) {
+        await inicializar();
+      }
+
+      final bool existenDatosRemotos = await _firestoreService.existenInsumos();
+
+      if (existenDatosRemotos) {
+        final List<Insumo> insumosRemotos = await _firestoreService
+            .obtenerTodos();
+
+        await _reemplazarEstado(insumosRemotos);
+      } else if (_insumos.isNotEmpty) {
+        // Esta carga ocurre solamente cuando Firestore
+        // todavía no contiene ningún insumo.
+        await _firestoreService.guardarTodos(_insumos);
+      }
+
+      await _suscripcionRemota?.cancel();
+
+      _suscripcionRemota = _firestoreService.observarCambios().listen(
+        (insumosRemotos) {
+          unawaited(_reemplazarEstado(insumosRemotos));
+        },
+        onError: (_) {
+          // Si la sesión se cierra o Firestore rechaza
+          // la escucha, se permitirá una nueva conexión
+          // después del siguiente inicio de sesión.
+          _nubeConectada = false;
+          _suscripcionRemota = null;
+        },
+      );
+
+      _nubeConectada = true;
+    } finally {
+      _conexionNubeEnCurso = null;
+    }
+  }
+
+  /// Cancela la escucha remota.
+  ///
+  /// El respaldo local y la colección en memoria se conservan.
+  Future<void> desconectarDeNube() async {
+    await _suscripcionRemota?.cancel();
+
+    _suscripcionRemota = null;
+    _nubeConectada = false;
+    _conexionNubeEnCurso = null;
+  }
+
+  // ========================================================
   // ESTADO DEL REPOSITORIO
   // ========================================================
 
-  /// Indica si la carga inicial ya terminó correctamente.
+  /// Indica si la carga inicial ya terminó.
   bool get estaInicializado {
     return _inicializado;
+  }
+
+  /// Indica si existe una escucha activa de Firestore.
+  bool get estaConectadoConNube {
+    return _nubeConectada;
   }
 
   // ========================================================
@@ -117,13 +219,12 @@ class InsumosRepository {
     return List<Insumo>.unmodifiable(_insumos);
   }
 
-  /// Devuelve únicamente los insumos disponibles
-  /// para seleccionar dentro del cotizador.
+  /// Devuelve únicamente los insumos activos.
   List<Insumo> obtenerActivos() {
     return List<Insumo>.unmodifiable(_insumos.where((insumo) => insumo.activo));
   }
 
-  /// Devuelve la cantidad total de insumos registrados.
+  /// Devuelve la cantidad total de insumos.
   int get cantidadTotal {
     return _insumos.length;
   }
@@ -137,35 +238,54 @@ class InsumosRepository {
   // CREACIÓN
   // ========================================================
 
-  /// Agrega un insumo y guarda la colección actualizada.
+  /// Agrega un insumo al almacenamiento compartido.
   Future<void> agregar(Insumo insumo) async {
-    _insumos.add(insumo);
+    if (_nubeConectada) {
+      await _firestoreService.guardar(insumo);
+    }
 
-    await _guardarEstadoActual();
+    final int indiceExistente = _buscarIndicePorId(insumo.id);
+
+    if (indiceExistente >= 0) {
+      _insumos[indiceExistente] = insumo;
+    } else {
+      _insumos.add(insumo);
+    }
+
+    await _ordenarGuardarYNotificar();
   }
 
   // ========================================================
   // EDICIÓN
   // ========================================================
 
-  /// Reemplaza un insumo y guarda la colección actualizada.
+  /// Actualiza un insumo conservando su UUID estable.
   ///
-  /// Si el índice no existe, la operación no modifica los datos.
+  /// El parámetro `indice` se conserva para mantener
+  /// compatibilidad con las pantallas actuales.
   Future<void> actualizar({required int indice, required Insumo insumo}) async {
     if (!_indiceValido(indice)) {
       return;
     }
 
-    _insumos[indice] = insumo;
+    final Insumo insumoActual = _insumos[indice];
 
-    await _guardarEstadoActual();
+    final Insumo insumoActualizado = insumo.copiarCon(id: insumoActual.id);
+
+    if (_nubeConectada) {
+      await _firestoreService.guardar(insumoActualizado);
+    }
+
+    _insumos[indice] = insumoActualizado;
+
+    await _ordenarGuardarYNotificar();
   }
 
   // ========================================================
   // CAMBIO DE ESTADO
   // ========================================================
 
-  /// Activa o desactiva un insumo y persiste el cambio.
+  /// Activa o desactiva un insumo.
   Future<void> cambiarEstado({
     required int indice,
     required bool activo,
@@ -174,34 +294,74 @@ class InsumosRepository {
       return;
     }
 
-    _insumos[indice] = _insumos[indice].copiarCon(activo: activo);
+    final Insumo insumoActualizado = _insumos[indice].copiarCon(activo: activo);
 
-    await _guardarEstadoActual();
+    if (_nubeConectada) {
+      await _firestoreService.guardar(insumoActualizado);
+    }
+
+    _insumos[indice] = insumoActualizado;
+
+    await _ordenarGuardarYNotificar();
   }
 
   // ========================================================
   // ELIMINACIÓN
   // ========================================================
 
-  /// Elimina un insumo y guarda la colección actualizada.
+  /// Elimina un insumo utilizando su UUID remoto.
   ///
-  /// Si el índice no existe, la operación no modifica los datos.
+  /// El índice se utiliza únicamente para localizar el
+  /// registro dentro de la copia en memoria.
   Future<void> eliminar(int indice) async {
     if (!_indiceValido(indice)) {
       return;
     }
 
+    final Insumo insumo = _insumos[indice];
+
+    if (_nubeConectada) {
+      await _firestoreService.eliminar(insumo.id);
+    }
+
     _insumos.removeAt(indice);
 
-    await _guardarEstadoActual();
+    await _ordenarGuardarYNotificar();
   }
 
   // ========================================================
-  // PERSISTENCIA INTERNA
+  // ACTUALIZACIÓN DEL ESTADO
   // ========================================================
 
-  /// Guarda una copia completa del estado actual.
-  Future<void> _guardarEstadoActual() async {
+  /// Reemplaza la colección en memoria con los datos
+  /// recibidos desde Firestore.
+  Future<void> _reemplazarEstado(List<Insumo> nuevosInsumos) async {
+    _insumos
+      ..clear()
+      ..addAll(nuevosInsumos);
+
+    await _ordenarGuardarYNotificar();
+  }
+
+  /// Ordena la colección, actualiza el respaldo local
+  /// y notifica a las interfaces que estén escuchando.
+  Future<void> _ordenarGuardarYNotificar() async {
+    _insumos.sort(
+      (primero, segundo) =>
+          primero.nombre.toLowerCase().compareTo(segundo.nombre.toLowerCase()),
+    );
+
+    await _guardarRespaldoLocal();
+
+    notifyListeners();
+  }
+
+  // ========================================================
+  // RESPALDO LOCAL
+  // ========================================================
+
+  /// Guarda localmente el último estado conocido.
+  Future<void> _guardarRespaldoLocal() async {
     await _storageService.guardarInsumos(_insumos);
   }
 
@@ -209,7 +369,14 @@ class InsumosRepository {
   // VALIDACIONES INTERNAS
   // ========================================================
 
-  /// Comprueba que el índice corresponda a un registro existente.
+  /// Busca un insumo mediante su UUID.
+  int _buscarIndicePorId(String insumoId) {
+    final String idLimpio = insumoId.trim();
+
+    return _insumos.indexWhere((insumo) => insumo.id == idLimpio);
+  }
+
+  /// Comprueba que el índice corresponda a un registro.
   bool _indiceValido(int indice) {
     return indice >= 0 && indice < _insumos.length;
   }

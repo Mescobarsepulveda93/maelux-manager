@@ -35,6 +35,36 @@ class _InsumosScreenState extends State<InsumosScreen> {
   final InsumosRepository repositorio = InsumosRepository.instancia;
 
   // ========================================================
+  // SINCRONIZACIÓN REACTIVA
+  // ========================================================
+
+  @override
+  void initState() {
+    super.initState();
+
+    // La pantalla se reconstruye cuando Firestore comunica
+    // un cambio al repositorio compartido.
+    repositorio.addListener(_actualizarDesdeRepositorio);
+  }
+
+  /// Reconstruye la interfaz con el último estado recibido.
+  void _actualizarDesdeRepositorio() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    // Evita mantener referencias a una pantalla cerrada.
+    repositorio.removeListener(_actualizarDesdeRepositorio);
+
+    super.dispose();
+  }
+
+  // ========================================================
   // VALORES CALCULADOS
   // ========================================================
 
@@ -42,6 +72,20 @@ class _InsumosScreenState extends State<InsumosScreen> {
   /// para su futura selección en el cotizador.
   int get cantidadInsumosActivos {
     return repositorio.cantidadActivos;
+  }
+
+  // ========================================================
+  // LOCALIZACIÓN DE REGISTROS
+  // ========================================================
+
+  /// Busca la posición actual de un insumo mediante su UUID.
+  ///
+  /// La posición puede cambiar cuando otro dispositivo
+  /// modifica el nombre o Firestore actualiza la colección.
+  int _buscarIndicePorId(String insumoId) {
+    return repositorio.obtenerTodos().indexWhere(
+      (insumo) => insumo.id == insumoId,
+    );
   }
 
   // ========================================================
@@ -68,8 +112,6 @@ class _InsumosScreenState extends State<InsumosScreen> {
       return;
     }
 
-    setState(() {});
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -84,16 +126,18 @@ class _InsumosScreenState extends State<InsumosScreen> {
   // EDICIÓN DE INSUMOS
   // ========================================================
 
-  /// Abre el formulario con los datos del insumo seleccionado
-  /// y actualiza el registro cuando se guardan los cambios.
-  Future<void> _editarInsumo(int indice) async {
+  /// Abre el formulario con los datos actuales del insumo
+  /// identificado mediante su UUID.
+  Future<void> _editarInsumo(String insumoId) async {
+    final int indiceInicial = _buscarIndicePorId(insumoId);
+
     final List<Insumo> insumosActuales = repositorio.obtenerTodos();
 
-    if (indice < 0 || indice >= insumosActuales.length) {
+    if (indiceInicial < 0 || indiceInicial >= insumosActuales.length) {
       return;
     }
 
-    final Insumo insumoActual = insumosActuales[indice];
+    final Insumo insumoActual = insumosActuales[indiceInicial];
 
     final Insumo? insumoEditado = await Navigator.push<Insumo>(
       context,
@@ -102,19 +146,28 @@ class _InsumosScreenState extends State<InsumosScreen> {
       ),
     );
 
-    // Si se regresa sin guardar, se conserva
-    // el registro original.
     if (insumoEditado == null || !mounted) {
       return;
     }
 
-    await repositorio.actualizar(indice: indice, insumo: insumoEditado);
+    // La lista puede haber cambiado mientras el formulario
+    // permanecía abierto, por lo que se localiza nuevamente
+    // el registro mediante su UUID.
+    final int indiceActual = _buscarIndicePorId(insumoId);
+
+    if (indiceActual < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('El insumo ya no está disponible.')),
+      );
+
+      return;
+    }
+
+    await repositorio.actualizar(indice: indiceActual, insumo: insumoEditado);
 
     if (!mounted) {
       return;
     }
-
-    setState(() {});
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -130,20 +183,18 @@ class _InsumosScreenState extends State<InsumosScreen> {
   // CAMBIO DE ESTADO
   // ========================================================
 
-  /// Activa o desactiva un insumo sin eliminarlo.
-  ///
-  /// Un insumo desactivado continúa registrado, pero no
-  /// será entregado por la consulta de insumos activos.
+  /// Activa o desactiva un insumo identificado por UUID.
   Future<void> _cambiarEstadoInsumo({
-    required int indice,
+    required String insumoId,
     required bool activo,
   }) async {
-    await repositorio.cambiarEstado(indice: indice, activo: activo);
-    if (!mounted) {
+    final int indiceActual = _buscarIndicePorId(insumoId);
+
+    if (indiceActual < 0) {
       return;
     }
 
-    setState(() {});
+    await repositorio.cambiarEstado(indice: indiceActual, activo: activo);
   }
 
   // ========================================================
@@ -151,36 +202,37 @@ class _InsumosScreenState extends State<InsumosScreen> {
   // ========================================================
 
   /// Solicita confirmación antes de eliminar definitivamente
-  /// un insumo del repositorio compartido.
-  Future<void> _confirmarEliminacion(int indice) async {
+  /// un insumo identificado mediante su UUID.
+  Future<void> _confirmarEliminacion(String insumoId) async {
+    final int indiceInicial = _buscarIndicePorId(insumoId);
+
     final List<Insumo> insumosActuales = repositorio.obtenerTodos();
 
-    if (indice < 0 || indice >= insumosActuales.length) {
+    if (indiceInicial < 0 || indiceInicial >= insumosActuales.length) {
       return;
     }
 
-    final Insumo insumo = insumosActuales[indice];
+    final Insumo insumo = insumosActuales[indiceInicial];
 
     final bool? confirmar = await showDialog<bool>(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Eliminar insumo'),
           content: Text(
             '¿Deseas eliminar "${insumo.nombre}"? '
-            'Esta acción no puede deshacerse durante '
-            'la sesión actual.',
+            'Esta acción eliminará el registro compartido.',
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context, false);
+                Navigator.pop(dialogContext, false);
               },
               child: const Text('CANCELAR'),
             ),
             FilledButton(
               onPressed: () {
-                Navigator.pop(context, true);
+                Navigator.pop(dialogContext, true);
               },
               child: const Text('ELIMINAR'),
             ),
@@ -189,25 +241,33 @@ class _InsumosScreenState extends State<InsumosScreen> {
       },
     );
 
-    // Si se cancela la operación o se cierra el cuadro
-    // de diálogo, el repositorio no se modifica.
     if (confirmar != true || !mounted) {
       return;
     }
 
-    await repositorio.eliminar(indice);
+    // Se busca nuevamente porque otro dispositivo podría
+    // haber modificado la lista mientras el diálogo estaba
+    // abierto.
+    final int indiceActual = _buscarIndicePorId(insumoId);
+
+    if (indiceActual < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('El insumo ya había sido eliminado.')),
+      );
+
+      return;
+    }
+
+    await repositorio.eliminar(indiceActual);
 
     if (!mounted) {
       return;
     }
 
-    setState(() {});
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Insumo "${insumo.nombre}" eliminado.')),
     );
   }
-
   // ========================================================
   // INTERFAZ DE LA PANTALLA
   // ========================================================
@@ -275,22 +335,17 @@ class _InsumosScreenState extends State<InsumosScreen> {
                           child: InsumoCard(
                             insumo: insumo,
 
-                            // Abre el formulario con los datos actuales
-                            // del insumo seleccionado.
                             alEditar: () {
-                              _editarInsumo(indice);
+                              _editarInsumo(insumo.id);
                             },
 
-                            // Solicita confirmación antes de eliminar
-                            // definitivamente el registro.
                             alEliminar: () {
-                              _confirmarEliminacion(indice);
+                              _confirmarEliminacion(insumo.id);
                             },
 
-                            // Actualiza la disponibilidad del insumo.
                             alCambiarEstado: (activo) {
                               _cambiarEstadoInsumo(
-                                indice: indice,
+                                insumoId: insumo.id,
                                 activo: activo,
                               );
                             },
