@@ -51,7 +51,7 @@ class MaeluxApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'MAELUX Manager',
       theme: AppTheme.lightTheme,
-      home: AuthGate(),
+      home: const AuthGate(),
     );
   }
 }
