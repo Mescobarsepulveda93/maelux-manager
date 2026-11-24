@@ -1,1 +1,32 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"maelux-beta","appId":"1:197548688317:android:162310a147fda4e6df48d4","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"maelux-beta","configurations":{"android":"1:197548688317:android:162310a147fda4e6df48d4","web":"1:197548688317:web:81bf798d3938fae0df48d4"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "maelux-beta",
+          "appId": "1:197548688317:android:162310a147fda4e6df48d4",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "maelux-beta",
+          "configurations": {
+            "android": "1:197548688317:android:162310a147fda4e6df48d4",
+            "web": "1:197548688317:web:81bf798d3938fae0df48d4"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
