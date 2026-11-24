@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/auth_service.dart';
 import 'catalogo_screen.dart';
 import 'cotizador_screen.dart';
 import 'insumos_screen.dart';
@@ -18,6 +19,16 @@ class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   // ========================================================
+  // SERVICIO DE AUTENTICACIÓN
+  // ========================================================
+
+  /// Servicio utilizado para consultar y cerrar
+  /// la sesión administrativa actual.
+  AuthService get authService {
+    return AuthService.instancia;
+  }
+
+  // ========================================================
   // NAVEGACIÓN PRINCIPAL
   // ========================================================
 
@@ -28,13 +39,77 @@ class HomeScreen extends StatelessWidget {
   }
 
   // ========================================================
+  // CIERRE DE SESIÓN
+  // ========================================================
+
+  /// Solicita confirmación antes de cerrar la sesión.
+  ///
+  /// Cuando Firebase complete el cierre, AuthGate detectará
+  /// automáticamente que ya no existe un usuario autenticado
+  /// y mostrará nuevamente la pantalla de acceso.
+  Future<void> _confirmarCierreSesion(BuildContext context) async {
+    final bool? confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Cerrar sesión'),
+          content: const Text(
+            '¿Deseas salir del área administrativa de MAELUX?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: const Text('CANCELAR'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('CERRAR SESIÓN'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmar != true || !context.mounted) {
+      return;
+    }
+
+    final String? error = await authService.cerrarSesion();
+
+    if (!context.mounted) {
+      return;
+    }
+
+    if (error != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error)));
+    }
+  }
+
+  // ========================================================
   // INTERFAZ PRINCIPAL
   // ========================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('MAELUX Manager')),
+      appBar: AppBar(
+        title: const Text('MAELUX Manager'),
+        actions: [
+          IconButton(
+            onPressed: () {
+              _confirmarCierreSesion(context);
+            },
+            tooltip: 'Cerrar sesión',
+            icon: const Icon(Icons.logout),
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Center(
@@ -43,6 +118,24 @@ class HomeScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // ------------------------------------------------
+                // SESIÓN ADMINISTRATIVA
+                // ------------------------------------------------
+                Card(
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.account_circle_outlined,
+                      size: 32,
+                    ),
+                    title: const Text('Sesión administrativa'),
+                    subtitle: Text(
+                      authService.usuarioActual?.email ?? 'Usuario autorizado',
+                    ),
+                    trailing: const Icon(Icons.verified_user_outlined),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
                 // ------------------------------------------------
                 // RESUMEN FINANCIERO
                 // ------------------------------------------------

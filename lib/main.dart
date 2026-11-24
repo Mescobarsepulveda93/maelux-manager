@@ -5,8 +5,8 @@ import 'data/configuracion_cotizador_repository.dart';
 import 'data/insumos_repository.dart';
 import 'data/productos_repository.dart';
 import 'firebase_options.dart';
-import 'screens/home_screen.dart';
 import 'theme/app_theme.dart';
+import 'widgets/auth_gate.dart';
 
 // ==========================================================
 // INICIALIZACIÓN DE MAELUX MANAGER
@@ -51,7 +51,7 @@ class MaeluxApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'MAELUX Manager',
       theme: AppTheme.lightTheme,
-      home: const HomeScreen(),
+      home: AuthGate(),
     );
   }
 }
