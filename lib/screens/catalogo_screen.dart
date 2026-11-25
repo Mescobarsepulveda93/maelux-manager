@@ -34,6 +34,37 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
   final ProductosRepository repositorio = ProductosRepository.instancia;
 
   // ========================================================
+  // SINCRONIZACIÓN REACTIVA
+  // ========================================================
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Reconstruye el catálogo cada vez que Firestore
+    // comunica un cambio al repositorio compartido.
+    repositorio.addListener(_actualizarDesdeRepositorio);
+  }
+
+  /// Muestra inmediatamente el último catálogo conocido.
+  void _actualizarDesdeRepositorio() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    // Evita mantener una referencia a esta pantalla
+    // después de cerrarla.
+    repositorio.removeListener(_actualizarDesdeRepositorio);
+
+    super.dispose();
+  }
+
+  // ========================================================
   // VALORES CALCULADOS
   // ========================================================
 
@@ -67,8 +98,6 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
       return;
     }
 
-    setState(() {});
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -83,19 +112,34 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
   // EDICIÓN DE PRODUCTOS
   // ========================================================
 
-  /// Abre el formulario con los datos del producto elegido
-  /// y guarda los cambios conservando su identificador.
+  /// Abre el formulario con el producto más reciente
+  /// identificado mediante su UUID.
   Future<void> _editarProducto(Producto producto) async {
+    final Producto? productoActual = repositorio.buscarPorId(producto.id);
+
+    if (productoActual == null) {
+      return;
+    }
+
     final Producto? productoEditado = await Navigator.push<Producto>(
       context,
       MaterialPageRoute(
-        builder: (context) => ProductoFormScreen(productoInicial: producto),
+        builder: (context) =>
+            ProductoFormScreen(productoInicial: productoActual),
       ),
     );
 
-    // Si el usuario vuelve sin guardar, el producto original
-    // permanece sin modificaciones.
     if (productoEditado == null || !mounted) {
+      return;
+    }
+
+    // Otro dispositivo podría haber eliminado el producto
+    // mientras el formulario permanecía abierto.
+    if (repositorio.buscarPorId(producto.id) == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('El producto ya no está disponible.')),
+      );
+
       return;
     }
 
@@ -104,8 +148,6 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
     if (!mounted) {
       return;
     }
-
-    setState(() {});
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -116,24 +158,19 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
       ),
     );
   }
-
   // ========================================================
   // CAMBIO DE ESTADO
   // ========================================================
 
-  /// Activa o desactiva un producto y espera a que
-  /// el cambio quede guardado localmente.
+  /// Activa o desactiva un producto mediante su UUID.
   Future<void> _cambiarEstadoProducto({
-    required int indice,
+    required String productoId,
     required bool activo,
   }) async {
-    await repositorio.cambiarEstado(indice: indice, activo: activo);
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {});
+    await repositorio.cambiarEstadoPorId(
+      productoId: productoId,
+      activo: activo,
+    );
   }
 
   // ========================================================
@@ -274,7 +311,7 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
                             // y persiste el nuevo estado.
                             alCambiarEstado: (activo) {
                               _cambiarEstadoProducto(
-                                indice: indice,
+                                productoId: producto.id,
                                 activo: activo,
                               );
                             },
